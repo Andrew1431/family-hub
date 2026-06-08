@@ -6,7 +6,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node --experimental-sqlite --no-warnings src/index.ts",
+    "start": "NODE_ENV=production NODE_OPTIONS=--no-warnings tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit"
   },
