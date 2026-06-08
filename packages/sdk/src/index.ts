@@ -3,6 +3,8 @@ export type {
   Capability,
   CapabilityAnnotations,
   CapabilityRegistry,
+  ContextProvider,
+  ContextContribution,
   AnthropicToolDef,
   McpToolDef,
 } from "./capabilities.js";

@@ -1,6 +1,8 @@
 import type {
   Capability,
   CapabilityRegistry,
+  ContextContribution,
+  ContextProvider,
   ModuleContext,
   AnthropicToolDef,
   McpToolDef,
@@ -12,6 +14,11 @@ interface Entry {
   ctx: ModuleContext;
 }
 
+interface ContextEntry {
+  module: string;
+  provider: ContextProvider;
+}
+
 /**
  * The single shared registry. Every module's `ctx.capabilities` is a thin
  * facade over this; `list`/`invoke`/projections are global, while `register`
@@ -19,6 +26,7 @@ interface Entry {
  */
 export class GlobalCapabilityRegistry {
   private entries = new Map<string, Entry>();
+  private contextProviders: ContextEntry[] = [];
 
   private add(module: string, ctx: ModuleContext, cap: Capability): void {
     if (this.entries.has(cap.name)) {
@@ -27,6 +35,26 @@ export class GlobalCapabilityRegistry {
       );
     }
     this.entries.set(cap.name, { module, cap, ctx });
+  }
+
+  private addContext(module: string, provider: ContextProvider): void {
+    this.contextProviders.push({ module, provider });
+  }
+
+  /** Run every context provider in parallel; drop failures and empties so one
+   *  broken provider never breaks a chat. */
+  async collectContext(): Promise<ContextContribution[]> {
+    const results = await Promise.all(
+      this.contextProviders.map(async ({ module, provider }) => {
+        try {
+          const text = (await provider())?.trim();
+          return text ? { source: module, text } : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return results.filter((c): c is ContextContribution => c !== null);
   }
 
   list(): Capability[] {
@@ -61,6 +89,8 @@ export class GlobalCapabilityRegistry {
       register: (cap) => this.add(module, getCtx(), cap as Capability),
       list: () => this.list(),
       invoke: (name, input) => this.invoke(name, input),
+      registerContext: (provider) => this.addContext(module, provider),
+      collectContext: () => this.collectContext(),
       toAnthropicTools: () => this.toAnthropicTools(),
       toMcpTools: () => this.toMcpTools(),
     };

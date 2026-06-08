@@ -1,12 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { defineBackend } from "@hub/sdk";
 
-const SYSTEM_BASE = `You are a warm, concise family assistant living on a smart-mirror dashboard in the family's home.
+const SYSTEM_BASE = `You are a warm, friendly family assistant living on a smart-mirror dashboard in the family's home. Your tools (schedule, to-dos, weather, etc.) are what make you especially useful here, but you're a good companion too — happy to chat, answer a general question, settle a debate, suggest a recipe, or share a quick fact when asked. Be relaxed and personable, not narrowly task-bound.
 
-Use your tools rather than guessing:
-- To answer a question, call the relevant read-only tool first — never invent schedule, task, or weather details.
+When the home's own data is involved, lean on your tools rather than guessing:
+- To answer a question about the schedule, to-dos, or weather, call the relevant read-only tool first — never invent those details.
 - To change something, call the matching tool, then confirm cheerfully in one sentence.
-- If no tool covers what's asked, say so briefly instead of pretending.
+- For general questions that no tool covers, just answer them helpfully from your own knowledge — no need to apologize or insist you only handle dashboard tasks. Only flag a limitation if you genuinely can't help (e.g. something needing live data you have no tool for).
 
 Keep replies short, friendly, and glanceable — this is a wall display, not a chat app. Respond only with your final answer; do not narrate your reasoning or describe which tools you're using.`;
 
@@ -15,18 +15,30 @@ Keep replies short, friendly, and glanceable — this is a wall display, not a c
  * the model a quick at-a-glance index of what's wired up right now, built from
  * the live registry so it never goes stale as modules are added or removed.
  */
-function buildSystem(caps: { name: string; description: string }[]): string {
+function buildSystem(
+  caps: { name: string; description: string }[],
+  context: { source: string; text: string }[],
+): string {
+  const parts = [SYSTEM_BASE];
   if (caps.length === 0) {
-    return `${SYSTEM_BASE}\n\nYou currently have no tools available, so you can only chat — let the family know if they ask for something that needs one.`;
+    parts.push(
+      "You have no dashboard tools wired up right now, so you can't read or change the home's schedule, to-dos, or weather — but you can still chat and answer general questions. If they ask for live home data, let them know that part isn't connected yet.",
+    );
+  } else {
+    parts.push(`Tools available right now:\n${caps.map((c) => `- ${c.name}: ${c.description}`).join("\n")}`);
   }
-  const list = caps.map((c) => `- ${c.name}: ${c.description}`).join("\n");
-  return `${SYSTEM_BASE}\n\nTools available right now:\n${list}`;
+  // Ambient context contributed live by modules (e.g. which to-do lists exist,
+  // the home location) so the model needn't spend a tool call to learn it.
+  if (context.length > 0) {
+    parts.push(`Current context:\n${context.map((c) => `- ${c.text}`).join("\n")}`);
+  }
+  return parts.join("\n\n");
 }
 
 // Sonnet 4.6 at low effort is plenty for glanceable family-hub replies and far
 // cheaper than Opus. Both are overridable via ctx.config ("model" / "effort").
 // Note: `effort` 400s on Haiku, so it's omitted automatically for haiku models.
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+const DEFAULT_MODEL = "claude-haiku-4-5";
 const DEFAULT_EFFORT = "low";
 const MAX_TOOL_TURNS = 8;
 
@@ -60,11 +72,23 @@ export default defineBackend((ctx) => {
     const effort = (await ctx.config.get<Effort>("effort")) ?? DEFAULT_EFFORT;
     const client = new Anthropic({ apiKey });
     const tools = ctx.capabilities.toAnthropicTools() as Anthropic.Tool[];
-    const system = buildSystem(tools.map((t) => ({ name: t.name, description: t.description ?? "" })));
+    const context = await ctx.capabilities.collectContext();
+    const system = buildSystem(
+      tools.map((t) => ({ name: t.name, description: t.description ?? "" })),
+      context,
+    );
     const messages: Anthropic.MessageParam[] = turns.map((m) => ({
       role: m.role,
       content: m.content,
     }));
+
+    ctx.log.info(
+      `chat: ${turns.length} msg(s), model=${model} effort=${effort}, ${tools.length} tools, ` +
+        `context=[${context.map((c) => c.source).join(",") || "none"}]`,
+    );
+    // Token totals across the (possibly multi-turn) tool loop.
+    let inTokens = 0;
+    let outTokens = 0;
 
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
       const res = await client.messages.create({
@@ -77,6 +101,13 @@ export default defineBackend((ctx) => {
         // effort is unsupported on Haiku; keep it off there to avoid a 400.
         ...(model.includes("haiku") ? {} : { output_config: { effort } }),
       });
+      inTokens += res.usage.input_tokens;
+      outTokens += res.usage.output_tokens;
+      const cached = res.usage.cache_read_input_tokens ?? 0;
+      ctx.log.info(
+        `chat turn ${turn + 1}: in=${res.usage.input_tokens}${cached ? ` (cached ${cached})` : ""} ` +
+          `out=${res.usage.output_tokens} stop=${res.stop_reason}`,
+      );
       messages.push({ role: "assistant", content: res.content });
 
       if (res.stop_reason !== "tool_use") {
@@ -85,6 +116,7 @@ export default defineBackend((ctx) => {
           .map((b) => b.text)
           .join("")
           .trim();
+        ctx.log.info(`chat done: ${turn + 1} turn(s), tokens in=${inTokens} out=${outTokens}`);
         return { reply: reply || "…" };
       }
 
@@ -93,6 +125,7 @@ export default defineBackend((ctx) => {
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const block of res.content) {
         if (block.type !== "tool_use") continue;
+        ctx.log.info(`tool call: ${block.name} ${JSON.stringify(block.input)}`);
         try {
           const out = await ctx.capabilities.invoke(
             block.name,

@@ -176,19 +176,41 @@ export default defineBackend((ctx) => {
     return out;
   }
 
-  // Resolve where a quick-add lands: the configured default, else first enabled.
-  async function resolveAddTarget(listId?: string): Promise<DefaultList | null> {
+  // Resolve where a quick-add lands. Priority: explicit listId → named list
+  // (case-insensitive, exact title then substring) → configured default →
+  // first enabled list. Returns the resolved title so callers can confirm
+  // which list the task actually landed in.
+  async function resolveAddTarget(opts: {
+    listId?: string;
+    listName?: string;
+  }): Promise<(DefaultList & { title: string }) | null> {
     const accounts = await getAccounts(ctx.config);
-    if (listId) {
-      const acct = accounts.find((a) => a.lists.some((l) => l.id === listId));
-      if (acct) return { accountId: acct.id, listId };
-      // Unknown list id — fall through to default (may be a brand-new list).
+    const titleOf = (accountId: string, listId: string) =>
+      accounts.find((a) => a.id === accountId)?.lists.find((l) => l.id === listId)?.title ?? "";
+
+    if (opts.listId) {
+      const acct = accounts.find((a) => a.lists.some((l) => l.id === opts.listId));
+      if (acct) return { accountId: acct.id, listId: opts.listId, title: titleOf(acct.id, opts.listId) };
+      // Unknown list id — fall through (may be a brand-new list).
     }
+
+    if (opts.listName) {
+      const needle = opts.listName.trim().toLowerCase();
+      const candidates = accounts.flatMap((a) =>
+        a.lists.filter((l) => l.enabled).map((l) => ({ accountId: a.id, list: l })),
+      );
+      const match =
+        candidates.find((c) => c.list.title.toLowerCase() === needle) ??
+        candidates.find((c) => c.list.title.toLowerCase().includes(needle));
+      if (match) return { accountId: match.accountId, listId: match.list.id, title: match.list.title };
+      // Named list not found — fall through to the default rather than failing.
+    }
+
     const def = await getDefaultList(ctx.config);
-    if (def) return def;
+    if (def) return { ...def, title: titleOf(def.accountId, def.listId) };
     for (const acct of accounts) {
       const first = acct.lists.find((l) => l.enabled);
-      if (first) return { accountId: acct.id, listId: first.id };
+      if (first) return { accountId: acct.id, listId: first.id, title: first.title };
     }
     return null;
   }
@@ -214,8 +236,12 @@ export default defineBackend((ctx) => {
     notes?: string;
     due?: string;
     listId?: string;
-  }): Promise<{ ok: boolean; id?: string; message?: string }> {
-    const target = await resolveAddTarget(input.listId);
+    listName?: string;
+  }): Promise<{ ok: boolean; id?: string; list?: string; message?: string }> {
+    const target = await resolveAddTarget({
+      ...(input.listId ? { listId: input.listId } : {}),
+      ...(input.listName ? { listName: input.listName } : {}),
+    });
     if (!target) {
       return {
         ok: false,
@@ -230,10 +256,26 @@ export default defineBackend((ctx) => {
       ...(input.notes ? { notes: input.notes } : {}),
       ...(input.due ? { due: input.due } : {}),
     });
-    return { ok: true, id: task.id };
+    return { ok: true, id: task.id, list: target.title };
   }
 
   // ── Capabilities (exposed to the assistant) ────────────────────────────────
+
+  // Ambient context: tell the assistant which lists exist (+ IDs and the
+  // default) so it can target the right one without a tool round-trip. Read
+  // from stored config — cheap, no Google call — since list membership is what
+  // matters here, not the live task contents.
+  ctx.capabilities.registerContext(async () => {
+    const accounts = await getAccounts(ctx.config);
+    const def = await getDefaultList(ctx.config);
+    const lists = accounts.flatMap((a) =>
+      a.lists
+        .filter((l) => l.enabled)
+        .map((l) => `${l.title} (id: ${l.id}${def && def.listId === l.id ? ", default" : ""})`),
+    );
+    if (lists.length === 0) return undefined;
+    return `To-do lists available: ${lists.join("; ")}. When adding to a named list, pass its listName or listId to todo_add_task.`;
+  });
 
   ctx.capabilities.register({
     name: "todo_list_tasks",
@@ -255,20 +297,36 @@ export default defineBackend((ctx) => {
   ctx.capabilities.register({
     name: "todo_add_task",
     description:
-      "Add a task to a to-do list (defaults to the family's default list). Use " +
-      "this for groceries, errands, and reminders.",
+      "Add a task to a to-do list. Use this for groceries, errands, and reminders. " +
+      "If the user names a specific list (e.g. 'add milk to my grocery list'), pass " +
+      "listName with that name — it's matched case-insensitively against the family's " +
+      "lists (call todo_list_tasks first if you're unsure which lists exist). With no " +
+      "list named, it lands in the family's default list. The result's `list` field " +
+      "is the list the task actually landed in — use it to confirm.",
     inputSchema: {
       type: "object",
       properties: {
         title: { type: "string", description: "What the task is, e.g. 'Buy milk'." },
         notes: { type: "string", description: "Optional extra details." },
         due: { type: "string", description: "Optional due date as YYYY-MM-DD (date only)." },
-        listId: { type: "string", description: "Optional task list ID. Defaults to the default list." },
+        listName: {
+          type: "string",
+          description:
+            "Optional list name to target, e.g. 'Groceries'. Matched case-insensitively " +
+            "against existing list titles; falls back to the default list if no match.",
+        },
+        listId: { type: "string", description: "Optional exact task list ID (overrides listName)." },
       },
       required: ["title"],
       additionalProperties: false,
     },
-    handler: async (input: { title: string; notes?: string; due?: string; listId?: string }) => {
+    handler: async (input: {
+      title: string;
+      notes?: string;
+      due?: string;
+      listId?: string;
+      listName?: string;
+    }) => {
       try {
         return await addTask(input);
       } catch (err) {

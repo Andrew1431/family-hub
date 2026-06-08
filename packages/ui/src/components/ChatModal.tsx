@@ -1,9 +1,50 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Msg {
   role: "user" | "assistant";
   content: string;
 }
+
+// Compact markdown styling tuned for small chat bubbles on the warm theme.
+// Kept here (not @tailwindcss/typography) so colors inherit the bubble instead
+// of fighting `prose`.
+const MD_COMPONENTS: Components = {
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc pl-4 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal pl-4 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="mb-0.5">{children}</li>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="text-primary underline">
+      {children}
+    </a>
+  ),
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  code: ({ children }) => (
+    <code className="rounded bg-base-content/10 px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
+  ),
+  pre: ({ children }) => (
+    <pre className="mb-2 overflow-x-auto rounded-lg bg-base-content/10 p-2.5 font-mono text-[0.85em] last:mb-0">
+      {children}
+    </pre>
+  ),
+  h1: ({ children }) => <h1 className="mb-1.5 text-[1.1em] font-semibold">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-1.5 text-[1.05em] font-semibold">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-1.5 font-semibold">{children}</h3>,
+  blockquote: ({ children }) => (
+    <blockquote className="mb-2 border-l-2 border-primary/40 pl-2.5 italic opacity-90 last:mb-0">
+      {children}
+    </blockquote>
+  ),
+  table: ({ children }) => (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="border-collapse text-[0.9em]">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => <th className="border border-base-content/15 px-2 py-1 text-left">{children}</th>,
+  td: ({ children }) => <td className="border border-base-content/15 px-2 py-1">{children}</td>,
+};
 
 const GREETING: Msg = {
   role: "assistant",
@@ -105,13 +146,19 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
                 </div>
               )}
               <div
-                className={`max-w-[80%] whitespace-pre-wrap px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                className={`max-w-[80%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
                   m.role === "user"
-                    ? "rounded-[18px_18px_4px_18px] bg-primary text-primary-content"
+                    ? "whitespace-pre-wrap rounded-[18px_18px_4px_18px] bg-primary text-primary-content"
                     : "rounded-[18px_18px_18px_4px] border border-base-content/10 bg-base-content/5 text-base-content"
                 }`}
               >
-                {m.content}
+                {m.role === "assistant" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+                    {m.content}
+                  </ReactMarkdown>
+                ) : (
+                  m.content
+                )}
               </div>
             </div>
           ))}

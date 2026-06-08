@@ -35,6 +35,23 @@ export interface CapabilityAnnotations {
   requiresConfirmation?: boolean;
 }
 
+/**
+ * Ambient context: a module can register a provider whose text is injected into
+ * the assistant's system prompt on every chat. Use it for small, always-useful
+ * facts the model should know without spending a tool call — e.g. which to-do
+ * lists exist (and their IDs), the home location, the local timezone. Keep it
+ * compact; this rides on every request. Return `undefined`/empty to contribute
+ * nothing (e.g. before any account is connected). Run on each chat, so it can
+ * read live state, but prefer cheap reads (config, not network) where possible.
+ */
+export type ContextProvider = () => Promise<string | undefined> | string | undefined;
+
+/** A provider's resolved, non-empty contribution, tagged with its module. */
+export interface ContextContribution {
+  source: string;
+  text: string;
+}
+
 /** Anthropic Messages API tool definition. */
 export interface AnthropicToolDef {
   name: string;
@@ -60,6 +77,10 @@ export interface CapabilityRegistry {
   list(): Capability[];
   /** Invoke by name; routes to the owning module's handler + context. */
   invoke(name: string, input: Record<string, unknown>): Promise<unknown>;
+  /** Register an ambient-context provider; its text rides on every assistant chat. */
+  registerContext(provider: ContextProvider): void;
+  /** Run every provider (in parallel); returns the non-empty contributions. */
+  collectContext(): Promise<ContextContribution[]>;
   /** Project the registry into Anthropic tool-use definitions. */
   toAnthropicTools(): AnthropicToolDef[];
   /** Project the registry into MCP tool definitions. */
