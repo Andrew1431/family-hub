@@ -1,49 +1,79 @@
-import { useState, useEffect, useRef } from "react";
-import { defineModule, type PanelProps } from "@hub/sdk";
+import { useEffect, useState, type ReactNode } from "react";
+import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 
-// ── Types (Google Tasks API shape) ─────────────────────────────────────────
+// ── Types (mirror backend google.ts) ─────────────────────────────────────────
 
-interface GTask {
+interface Task {
   id: string;
   title: string;
-  notes?: string;
   status: "needsAction" | "completed";
-  due?: string;
+  notes?: string;
+  due?: string; // YYYY-MM-DD
   completed?: string;
 }
 
-interface GTaskList {
+interface List {
   id: string;
+  accountId: string;
   title: string;
-  color: string; // assigned by backend from a fixed palette, one color per list
-  tasks: GTask[];
+  color: string;
+  tasks: Task[];
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+type ViewMode = "stacked" | "tabs";
+
+interface TasksResponse {
+  viewMode: ViewMode;
+  lists: List[];
+}
+
+// ── Date helpers (due is date-only; parse parts to avoid timezone drift) ──────
+
+function parseDue(due: string): Date {
+  const [y, m, d] = due.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+}
 
 function formatDue(due: string): string {
-  const d = new Date(due);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return parseDue(due).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-interface TaskRowProps {
-  task: GTask;
-  listColor: string;
-  onComplete: (taskId: string) => void;
+function isOverdue(due: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return parseDue(due).getTime() < today.getTime();
 }
 
-function TaskRow({ task, listColor, onComplete }: TaskRowProps) {
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const API = "/api/m/todo-google";
+
+// ── Task row ──────────────────────────────────────────────────────────────────
+
+function TaskRow({
+  task,
+  color,
+  onToggle,
+  onDelete,
+}: {
+  task: Task;
+  color: string;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
   const done = task.status === "completed";
+  const overdue = task.due && !done && isOverdue(task.due);
   return (
-    <div className="flex items-start gap-2 py-1">
+    <div className="group flex items-start gap-2 py-1">
       <button
-        onClick={() => { if (!done) onComplete(task.id); }}
-        aria-label={done ? "Completed" : "Mark complete"}
-        className="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border border-base-content/25 flex items-center justify-center transition-colors"
-        style={done ? { backgroundColor: listColor, borderColor: listColor } : {}}
+        onClick={onToggle}
+        aria-label={done ? "Mark not done" : "Mark complete"}
+        className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-base-content/25 transition-colors"
+        style={done ? { backgroundColor: color, borderColor: color } : {}}
       >
         {done && (
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -51,18 +81,70 @@ function TaskRow({ task, listColor, onComplete }: TaskRowProps) {
           </svg>
         )}
       </button>
-      <div className="flex-1 min-w-0">
-        <span
-          className={`text-sm leading-snug ${done ? "line-through text-base-content/35" : "text-base-content"}`}
-        >
+      <div className="min-w-0 flex-1">
+        <span className={`text-sm leading-snug ${done ? "text-base-content/35 line-through" : "text-base-content"}`}>
           {task.title}
         </span>
         {task.due && !done && (
-          <div className="font-serif italic text-xs text-base-content/50 mt-0.5">
+          <div className={`mt-0.5 font-serif text-xs italic ${overdue ? "text-error/70" : "text-base-content/50"}`}>
             {formatDue(task.due)}
           </div>
         )}
       </div>
+      <button
+        onClick={onDelete}
+        aria-label="Delete task"
+        className="mt-0.5 grid h-4 w-4 flex-shrink-0 place-items-center rounded text-base-content/0 transition-colors group-hover:text-base-content/35 hover:!text-error"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ── List body (active + completed split) ─────────────────────────────────────
+
+function ListTasks({
+  list,
+  onToggle,
+  onDelete,
+}: {
+  list: List;
+  onToggle: (listId: string, task: Task) => void;
+  onDelete: (listId: string, taskId: string) => void;
+}) {
+  const active = list.tasks.filter((t) => t.status === "needsAction");
+  const done = list.tasks.filter((t) => t.status === "completed");
+  if (active.length === 0 && done.length === 0) {
+    return <div className="py-1 font-serif text-xs italic text-base-content/30">Nothing here yet</div>;
+  }
+  return (
+    <div className="flex flex-col">
+      {active.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          color={list.color}
+          onToggle={() => onToggle(list.id, t)}
+          onDelete={() => onDelete(list.id, t.id)}
+        />
+      ))}
+      {done.length > 0 && (
+        <>
+          <div className="mb-1 mt-2 border-t border-base-content/8 pt-1 font-serif text-xs italic text-base-content/35">
+            Completed
+          </div>
+          {done.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              color={list.color}
+              onToggle={() => onToggle(list.id, t)}
+              onDelete={() => onDelete(list.id, t.id)}
+            />
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -70,18 +152,27 @@ function TaskRow({ task, listColor, onComplete }: TaskRowProps) {
 // ── Panel ──────────────────────────────────────────────────────────────────
 
 function TodoPanel(_props: PanelProps) {
-  const [lists, setLists] = useState<GTaskList[]>([]);
+  const [lists, setLists] = useState<List[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("stacked");
+  const [activeId, setActiveId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function fetchTasks() {
+  const [newTitle, setNewTitle] = useState("");
+  const [showDue, setShowDue] = useState(false);
+  const [due, setDue] = useState(todayStr());
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function load() {
     try {
-      const res = await fetch("/api/m/todo-google/tasks");
+      const res = await fetch(`${API}/tasks`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as GTaskList[];
-      setLists(data);
+      const data = (await res.json()) as TasksResponse;
+      setLists(data.lists);
+      setViewMode(data.viewMode);
+      setActiveId((prev) =>
+        prev && data.lists.some((l) => l.id === prev) ? prev : (data.lists[0]?.id ?? ""),
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load tasks");
@@ -90,62 +181,196 @@ function TodoPanel(_props: PanelProps) {
     }
   }
 
-  useEffect(() => { void fetchTasks(); }, []);
+  useEffect(() => { void load(); }, []);
 
-  async function handleComplete(taskId: string) {
-    await fetch("/api/m/todo-google/tasks/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taskId }),
-    });
-    await fetchTasks();
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   }
 
-  async function handleAdd() {
+  // In tabs mode the active tab is the add target; in stacked mode, a dropdown.
+  const [stackedAddId, setStackedAddId] = useState<string>("");
+  const addListId =
+    viewMode === "tabs"
+      ? activeId
+      : (stackedAddId && lists.some((l) => l.id === stackedAddId) ? stackedAddId : (lists[0]?.id ?? ""));
+
+  async function add() {
     const title = newTitle.trim();
-    if (!title) return;
+    if (!title || !addListId) return;
     setNewTitle("");
-    await fetch("/api/m/todo-google/tasks", {
+    const body: Record<string, unknown> = { title, listId: addListId };
+    if (showDue && due) body.due = due;
+    await fetch(`${API}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify(body),
     });
-    await fetchTasks();
+    await load();
+  }
+
+  async function toggle(listId: string, task: Task) {
+    const snapshot = lists;
+    const next = task.status === "completed" ? "needsAction" : "completed";
+    // Optimistic: flip status now so the row moves piles instantly.
+    setLists((prev) =>
+      prev.map((l) =>
+        l.id === listId
+          ? { ...l, tasks: l.tasks.map((t) => (t.id === task.id ? { ...t, status: next } : t)) }
+          : l,
+      ),
+    );
+    try {
+      const res = await fetch(`${API}/tasks/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId, taskId: task.id, completed: next === "completed" }),
+      });
+      const j = (await res.json()) as { ok?: boolean };
+      if (!res.ok || j.ok === false) throw new Error("toggle failed");
+    } catch {
+      setLists(snapshot); // restore on failure
+    }
+  }
+
+  async function del(listId: string, taskId: string) {
+    const snapshot = lists;
+    // Optimistic: drop the row now, reconcile only if the request fails.
+    setLists((prev) =>
+      prev.map((l) => (l.id === listId ? { ...l, tasks: l.tasks.filter((t) => t.id !== taskId) } : l)),
+    );
+    try {
+      const res = await fetch(`${API}/tasks/${encodeURIComponent(listId)}/${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+      });
+      const j = (await res.json()) as { ok?: boolean };
+      if (!res.ok || j.ok === false) throw new Error("delete failed");
+    } catch {
+      setLists(snapshot); // restore on failure
+    }
+  }
+
+  async function switchView(mode: ViewMode) {
+    setViewMode(mode);
+    await fetch(`${API}/accounts`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ viewMode: mode }),
+    });
   }
 
   const remaining = lists.reduce(
     (n, l) => n + l.tasks.filter((t) => t.status === "needsAction").length,
     0,
   );
-
-  const multiList = lists.length > 1;
+  const activeList = lists.find((l) => l.id === activeId);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-1">
+    <div className="flex h-full flex-col gap-3 overflow-hidden p-1">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="panel-label">To-Do</span>
-        <span className="font-mono text-xs text-base-content/50">{remaining} remaining</span>
+      <div className="flex shrink-0 items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="panel-label">To-Do</span>
+          <button
+            onClick={() => void refresh()}
+            disabled={refreshing}
+            aria-label="Refresh"
+            className="grid h-5 w-5 place-items-center rounded text-base-content/40 transition-colors hover:text-base-content/70"
+          >
+            <svg className={refreshing ? "animate-spin" : ""} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-base-content/50">{remaining} left</span>
+          {lists.length > 1 && (
+            <div className="flex items-center gap-0.5 rounded-md bg-base-content/5 p-0.5">
+              <ViewBtn active={viewMode === "stacked"} label="Stacked view" onClick={() => void switchView("stacked")}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </ViewBtn>
+              <ViewBtn active={viewMode === "tabs"} label="Tabs view" onClick={() => void switchView("tabs")}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18" />
+                </svg>
+              </ViewBtn>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Add row */}
-      <div className="flex gap-2">
-        <input
-          ref={inputRef}
-          className="input input-sm flex-1 bg-base-content/5 border-base-content/10 text-sm placeholder:text-base-content/35"
-          placeholder="Add a task…"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { void handleAdd(); } }}
-        />
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={() => { void handleAdd(); }}
-          aria-label="Add task"
-        >
-          +
-        </button>
-      </div>
+      {lists.length > 0 && (
+        <div className="flex shrink-0 flex-col gap-2">
+          <div className="flex gap-2">
+            {viewMode === "stacked" && lists.length > 1 && (
+              <select
+                value={addListId}
+                onChange={(e) => setStackedAddId(e.target.value)}
+                className="select select-sm max-w-[40%] border-base-content/10 bg-base-content/5 text-xs"
+                aria-label="List to add to"
+              >
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>{l.title}</option>
+                ))}
+              </select>
+            )}
+            <input
+              className="input input-sm flex-1 border-base-content/10 bg-base-content/5 text-sm placeholder:text-base-content/35"
+              placeholder="Add a task…"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
+            />
+            <button
+              className={`btn btn-sm btn-square ${showDue ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setShowDue((s) => !s)}
+              aria-label="Toggle due date"
+              aria-pressed={showDue}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+            </button>
+            <button className="btn btn-sm btn-primary btn-square" onClick={() => void add()} aria-label="Add task">
+              +
+            </button>
+          </div>
+          {showDue && (
+            <input
+              type="date"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+              className="input input-sm self-start border-base-content/10 bg-base-content/5 text-xs"
+              aria-label="Due date"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Tabs bar */}
+      {viewMode === "tabs" && lists.length > 1 && (
+        <div className="flex shrink-0 gap-1 overflow-x-auto">
+          {lists.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setActiveId(l.id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
+                l.id === activeId ? "bg-base-content/10 text-base-content" : "text-base-content/55 hover:bg-base-content/5"
+              }`}
+            >
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
+              {l.title}
+              <span className="font-mono text-[10px] text-base-content/35">
+                ({l.tasks.filter((t) => t.status === "completed").length}/{l.tasks.length})
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Body */}
       {loading ? (
@@ -154,47 +379,371 @@ function TodoPanel(_props: PanelProps) {
         </div>
       ) : error ? (
         <div className="flex flex-1 items-center justify-center text-xs text-error/70">{error}</div>
+      ) : lists.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center px-4 text-center font-serif text-xs italic text-base-content/40">
+          No lists yet. Open settings (hover the card, click the cog) to connect Google and add a list.
+        </div>
+      ) : viewMode === "tabs" ? (
+        <div className="flex-1 overflow-y-auto">
+          {activeList && <ListTasks list={activeList} onToggle={(id, t) => void toggle(id, t)} onDelete={(id, tid) => void del(id, tid)} />}
+        </div>
       ) : (
-        <div className="flex-1 overflow-y-auto flex flex-col gap-4">
-          {lists.map((list) => {
-            const active = list.tasks.filter((t) => t.status === "needsAction");
-            const done = list.tasks.filter((t) => t.status === "completed");
-            return (
-              <div key={list.id}>
-                {multiList && (
-                  <div className="flex items-center gap-1.5 mb-1">
-                    {/* Color dot derived from list, not from a person */}
-                    <span
-                      className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: list.color }}
-                    />
-                    <span className="text-xs font-sans text-base-content/60 tracking-wide">
-                      {list.title}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-col">
-                  {active.map((t) => (
-                    <TaskRow key={t.id} task={t} listColor={list.color} onComplete={(id) => { void handleComplete(id); }} />
-                  ))}
-                  {done.length > 0 && (
-                    <>
-                      <div className="mt-2 mb-1 text-xs font-serif italic text-base-content/35 border-t border-base-content/8 pt-1">
-                        Completed
-                      </div>
-                      {done.map((t) => (
-                        <TaskRow key={t.id} task={t} listColor={list.color} onComplete={(id) => { void handleComplete(id); }} />
-                      ))}
-                    </>
-                  )}
-                </div>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+          {lists.map((list) => (
+            <div key={list.id}>
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: list.color }} />
+                <span className="font-sans text-xs tracking-wide text-base-content/60">{list.title}</span>
+                <span className="font-mono text-[11px] text-base-content/35">
+                  ({list.tasks.filter((t) => t.status === "completed").length}/{list.tasks.length})
+                </span>
               </div>
-            );
-          })}
+              <ListTasks list={list} onToggle={(id, t) => void toggle(id, t)} onDelete={(id, tid) => void del(id, tid)} />
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-export default defineModule({ manifest, Panel: TodoPanel });
+function ViewBtn({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      className={`grid h-6 w-6 place-items-center rounded transition-colors ${
+        active ? "bg-base-content/10 text-base-content" : "text-base-content/40 hover:text-base-content/70"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+interface SettingsList {
+  id: string;
+  title: string;
+  color: string;
+  enabled: boolean;
+}
+
+interface SettingsAccount {
+  id: string;
+  email: string;
+  name: string;
+  lists: SettingsList[];
+}
+
+interface DefaultList {
+  accountId: string;
+  listId: string;
+}
+
+interface OAuthStatus {
+  configured: boolean;
+  redirectUri: string;
+  accounts: SettingsAccount[];
+  defaultList: DefaultList | null;
+  viewMode: ViewMode;
+}
+
+function TodoSettings({ onClose }: SettingsProps) {
+  const [status, setStatus] = useState<OAuthStatus | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [savingClient, setSavingClient] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [newListTitle, setNewListTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function load() {
+    fetch(`${API}/oauth/status`)
+      .then((r) => r.json() as Promise<OAuthStatus>)
+      .then(setStatus)
+      .catch(() => {});
+  }
+
+  useEffect(load, []);
+
+  async function saveClient() {
+    if (!clientId.trim() || !clientSecret.trim()) return;
+    setSavingClient(true);
+    await fetch(`${API}/oauth/client`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+    });
+    setSavingClient(false);
+    setClientId("");
+    setClientSecret("");
+    load();
+  }
+
+  function connect() {
+    const popup = window.open(`${API}/oauth/start`, "google-oauth", "width=520,height=640");
+    const timer = setInterval(() => {
+      if (!popup || popup.closed) {
+        clearInterval(timer);
+        load();
+      }
+    }, 800);
+  }
+
+  async function disconnect(id: string) {
+    await fetch(`${API}/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
+    load();
+  }
+
+  function patchList(accountId: string, listId: string, fields: Partial<SettingsList>) {
+    setStatus((prev) =>
+      prev
+        ? {
+            ...prev,
+            accounts: prev.accounts.map((a) =>
+              a.id === accountId
+                ? { ...a, lists: a.lists.map((l) => (l.id === listId ? { ...l, ...fields } : l)) }
+                : a,
+            ),
+          }
+        : prev,
+    );
+  }
+
+  async function createList(accountId: string) {
+    const title = newListTitle.trim();
+    if (!title || busy) return;
+    setBusy(true);
+    await fetch(`${API}/lists`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, accountId }),
+    });
+    setNewListTitle("");
+    setBusy(false);
+    load();
+  }
+
+  async function renameList(listId: string, title: string, original: string) {
+    const t = title.trim();
+    if (!t || t === original) return;
+    await fetch(`${API}/lists/${encodeURIComponent(listId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: t }),
+    });
+    load();
+  }
+
+  async function deleteList(listId: string) {
+    if (!confirm("Delete this list and all its tasks? This can't be undone.")) return;
+    await fetch(`${API}/lists/${encodeURIComponent(listId)}`, { method: "DELETE" });
+    load();
+  }
+
+  async function saveSettings() {
+    if (!status) return;
+    setSaving(true);
+    await fetch(`${API}/accounts`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accounts: status.accounts,
+        defaultList: status.defaultList,
+        viewMode: status.viewMode,
+      }),
+    });
+    setSaving(false);
+    onClose();
+  }
+
+  if (!status) {
+    return (
+      <div className="grid place-items-center py-8">
+        <span className="loading loading-spinner text-base-content/40" />
+      </div>
+    );
+  }
+
+  const allLists = status.accounts.flatMap((a) => a.lists.map((l) => ({ accountId: a.id, ...l })));
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Google client (only until configured) */}
+      {!status.configured ? (
+        <div className="flex flex-col gap-2">
+          <div className="panel-label">Google account</div>
+          <p className="font-serif text-xs italic text-base-content/45">
+            Reuses the hub's shared OAuth client (same one the calendar uses). Set{" "}
+            <code className="font-mono">GOOGLE_CLIENT_ID</code> / <code className="font-mono">GOOGLE_CLIENT_SECRET</code>{" "}
+            in <code className="font-mono">.env</code> and restart — or paste them below. Register this redirect URI:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
+              {status.redirectUri}
+            </code>
+            <button
+              className="btn btn-xs btn-ghost"
+              onClick={() => {
+                void navigator.clipboard?.writeText(status.redirectUri);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <input
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            placeholder="Client ID"
+            className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
+          />
+          <input
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            placeholder="Client secret"
+            type="password"
+            className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
+          />
+          <button
+            className="btn btn-sm btn-primary self-start"
+            onClick={() => void saveClient()}
+            disabled={!clientId.trim() || !clientSecret.trim() || savingClient}
+          >
+            {savingClient ? "Saving…" : "Save client"}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="panel-label">Lists</div>
+          {status.accounts.length === 0 ? (
+            <p className="font-serif text-xs italic text-base-content/45">
+              Client configured. Connect the shared family account to manage lists.
+            </p>
+          ) : (
+            status.accounts.map((acct) => (
+              <div key={acct.id} className="flex flex-col gap-2 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
+                    {acct.email}
+                  </span>
+                  <button onClick={() => void disconnect(acct.id)} className="text-[11px] text-base-content/40 hover:text-error">
+                    Disconnect
+                  </button>
+                </div>
+                {acct.lists.map((l) => (
+                  <div key={l.id} className="flex items-center gap-2 pl-1">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-xs"
+                      checked={l.enabled}
+                      onChange={(e) => patchList(acct.id, l.id, { enabled: e.target.checked })}
+                      aria-label={`Show ${l.title}`}
+                    />
+                    <input
+                      type="color"
+                      value={l.color}
+                      onChange={(e) => patchList(acct.id, l.id, { color: e.target.value })}
+                      className="h-4 w-4 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                      aria-label={`${l.title} colour`}
+                    />
+                    <input
+                      defaultValue={l.title}
+                      onBlur={(e) => void renameList(l.id, e.target.value, l.title)}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      className="input input-xs min-w-0 flex-1 border-base-content/10 bg-base-content/5 font-sans"
+                      aria-label="List name"
+                    />
+                    <button
+                      onClick={() => void deleteList(l.id)}
+                      aria-label={`Delete ${l.title}`}
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded text-base-content/40 hover:bg-error/10 hover:text-error"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {/* Create list */}
+                <div className="flex items-center gap-2 pl-1">
+                  <input
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void createList(acct.id); }}
+                    placeholder="New list…"
+                    className="input input-xs flex-1 border-base-content/10 bg-base-content/5"
+                  />
+                  <button className="btn btn-xs btn-primary" onClick={() => void createList(acct.id)} disabled={!newListTitle.trim() || busy}>
+                    Add list
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          <button className="btn btn-sm btn-ghost self-start" onClick={connect}>
+            + Connect account
+          </button>
+
+          {allLists.length > 0 && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className="panel-label">New tasks default to</span>
+                <select
+                  value={status.defaultList?.listId ?? ""}
+                  onChange={(e) => {
+                    const sel = allLists.find((l) => l.id === e.target.value);
+                    setStatus({ ...status, defaultList: sel ? { accountId: sel.accountId, listId: sel.id } : null });
+                  }}
+                  className="select select-sm border-base-content/10 bg-base-content/5"
+                >
+                  <option value="">— first enabled list —</option>
+                  {allLists.map((l) => (
+                    <option key={l.id} value={l.id}>{l.title}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="panel-label">Panel layout</span>
+                <select
+                  value={status.viewMode}
+                  onChange={(e) => setStatus({ ...status, viewMode: e.target.value === "tabs" ? "tabs" : "stacked" })}
+                  className="select select-sm border-base-content/10 bg-base-content/5"
+                >
+                  <option value="stacked">Stacked — all lists at once</option>
+                  <option value="tabs">Tabs — one list at a time</option>
+                </select>
+              </label>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 border-t border-base-content/10 pt-3">
+        <button className="btn btn-sm btn-ghost" onClick={onClose}>Cancel</button>
+        {status.configured && status.accounts.length > 0 && (
+          <button className="btn btn-sm btn-primary" onClick={() => void saveSettings()} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default defineModule({ manifest, Panel: TodoPanel, Settings: TodoSettings });

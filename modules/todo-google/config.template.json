@@ -1,0 +1,6 @@
+{
+  "$comment": "To-Do settings. Normally managed from the panel's settings cog (writes to the database). 'accounts' holds connected Google accounts with per-list local metadata { id, title, color, enabled } (titles come live from Google). 'defaultList' { accountId, listId } is where quick-adds land. 'viewMode' is 'stacked' (all lists) or 'tabs' (one at a time).",
+  "accounts": [],
+  "defaultList": null,
+  "viewMode": "stacked"
+}
