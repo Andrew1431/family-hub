@@ -19,5 +19,5 @@ export type { ModuleManifest } from "./manifest.js";
 export type { GridSize, GridPlacement, LayoutConfig } from "./layout.js";
 export type { ModuleBackend } from "./backend.js";
 export { defineBackend } from "./backend.js";
-export type { PanelProps, ModuleFrontend } from "./frontend.js";
+export type { PanelProps, SettingsProps, ModuleFrontend } from "./frontend.js";
 export { defineModule } from "./frontend.js";

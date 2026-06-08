@@ -1,0 +1,4 @@
+{
+  "$comment": "Calendar settings. Copied to config.local.json (gitignored) on first run — but you'll normally manage subscriptions from the panel's settings cog, which writes to the database. Each subscription is an iCalendar feed URL (Google 'secret address in iCal format', an Outlook/work published calendar, a sports schedule, etc.): { id, name, url, color, enabled }.",
+  "subscriptions": []
+}

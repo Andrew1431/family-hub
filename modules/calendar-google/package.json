@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@hub/sdk": "workspace:*"
+    "@hub/sdk": "workspace:*",
+    "node-ical": "^0.20.1"
   },
   "peerDependencies": {
     "react": ">=18"

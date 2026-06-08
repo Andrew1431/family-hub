@@ -7,10 +7,22 @@ export interface PanelProps {
   moduleName: string;
 }
 
-/** The frontend half of a module: its manifest plus its panel component. */
+/**
+ * Props the shell passes to a module's optional Settings component. The shell
+ * supplies the surrounding modal chrome (backdrop, Esc, focus); the module only
+ * renders the body and calls `onClose` when done.
+ */
+export interface SettingsProps {
+  moduleName: string;
+  onClose: () => void;
+}
+
+/** The frontend half of a module: its manifest, panel, and optional settings. */
 export interface ModuleFrontend {
   manifest: ModuleManifest;
   Panel: ComponentType<PanelProps>;
+  /** If present, the shell shows a settings cog on the card that opens this. */
+  Settings?: ComponentType<SettingsProps>;
 }
 
 /** Identity helper that gives module authors full type inference. */

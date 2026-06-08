@@ -1,13 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { defineBackend } from "@hub/sdk";
 
-const SYSTEM = `You are a warm, concise family assistant living on a smart-mirror dashboard in the family's home.
+const SYSTEM_BASE = `You are a warm, concise family assistant living on a smart-mirror dashboard in the family's home.
 
-You have tools that read and modify the family's calendar, to-do lists, and weather. Use them:
-- To answer a question about the schedule, tasks, or weather, call the relevant read tool first — never guess.
-- To add or complete something, call the matching tool, then confirm cheerfully in one sentence.
+Use your tools rather than guessing:
+- To answer a question, call the relevant read-only tool first — never invent schedule, task, or weather details.
+- To change something, call the matching tool, then confirm cheerfully in one sentence.
+- If no tool covers what's asked, say so briefly instead of pretending.
 
 Keep replies short, friendly, and glanceable — this is a wall display, not a chat app. Respond only with your final answer; do not narrate your reasoning or describe which tools you're using.`;
+
+/**
+ * The full tool schemas are already sent in the `tools` array; this just gives
+ * the model a quick at-a-glance index of what's wired up right now, built from
+ * the live registry so it never goes stale as modules are added or removed.
+ */
+function buildSystem(caps: { name: string; description: string }[]): string {
+  if (caps.length === 0) {
+    return `${SYSTEM_BASE}\n\nYou currently have no tools available, so you can only chat — let the family know if they ask for something that needs one.`;
+  }
+  const list = caps.map((c) => `- ${c.name}: ${c.description}`).join("\n");
+  return `${SYSTEM_BASE}\n\nTools available right now:\n${list}`;
+}
 
 // Sonnet 4.6 at low effort is plenty for glanceable family-hub replies and far
 // cheaper than Opus. Both are overridable via ctx.config ("model" / "effort").
@@ -46,6 +60,7 @@ export default defineBackend((ctx) => {
     const effort = (await ctx.config.get<Effort>("effort")) ?? DEFAULT_EFFORT;
     const client = new Anthropic({ apiKey });
     const tools = ctx.capabilities.toAnthropicTools() as Anthropic.Tool[];
+    const system = buildSystem(tools.map((t) => ({ name: t.name, description: t.description ?? "" })));
     const messages: Anthropic.MessageParam[] = turns.map((m) => ({
       role: m.role,
       content: m.content,
@@ -55,7 +70,7 @@ export default defineBackend((ctx) => {
       const res = await client.messages.create({
         model,
         max_tokens: 1024,
-        system: SYSTEM,
+        system,
         tools,
         messages,
         thinking: { type: "disabled" },

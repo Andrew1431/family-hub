@@ -14,6 +14,9 @@ const log = makeLogger("loader");
 export interface LoadedModule {
   manifest: ModuleManifest;
   dir: string;
+  /** Merged committed+local config defaults; the server builds a store from this
+   *  to serve and persist settings written by a module's settings UI. */
+  configDefaults: Record<string, unknown>;
 }
 
 export interface LoaderDeps {
@@ -104,6 +107,8 @@ export async function loadModules(deps: LoaderDeps): Promise<LoadedModule[]> {
       log.warn(`module "${name}" declares mismatched manifest name "${manifest.name}"`);
     }
 
+    const configDefaults = readModuleConfig(dir);
+
     if (manifest.hasBackend) {
       const backendFile = entryFile(dir, "backend");
       if (!backendFile) {
@@ -128,7 +133,7 @@ export async function loadModules(deps: LoaderDeps): Promise<LoadedModule[]> {
               registry,
               bus,
               route,
-              configDefaults: readModuleConfig(dir),
+              configDefaults,
               secretEnv: manifest.secretEnv ?? {},
             });
             const backendMod = await import(pathToFileURL(backendFile).href);
@@ -146,7 +151,7 @@ export async function loadModules(deps: LoaderDeps): Promise<LoadedModule[]> {
       }
     }
 
-    loaded.push({ manifest, dir });
+    loaded.push({ manifest, dir, configDefaults });
     log.info(`loaded module "${manifest.name}" v${manifest.version}`);
   }
 
