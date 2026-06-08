@@ -1,0 +1,12 @@
+{
+  "name": "@hub/tooling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "hub-seed": "./seed.mjs"
+  },
+  "exports": {
+    "./seed": "./seed.mjs"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@hub-module/assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@hub/sdk": "workspace:*"
+  }
+}

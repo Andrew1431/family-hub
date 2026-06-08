@@ -1,0 +1,117 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Family Hub theme file  (daisyUI v5 + Tailwind v4)
+
+   This is the TEMPLATE. On first build it is copied to `theme.local.css`,
+   which is gitignored — so edit `theme.local.css` to customize your hub
+   without creating commit noise. To reset, delete it and re-run `pnpm seed`.
+
+   Two themes ship by default:
+     • "hearth"     – warm dark (default), matches the reference design
+     • "hearth-day" – warm light, for daytime / bright rooms
+   Switch at runtime by setting <html data-theme="hearth-day">.
+   Add your own by copying a block and changing `name:`.
+
+   Colors accept any CSS color (hex is fine). The palette below mirrors the
+   reference UI: copper accent (#c4956a) on a dark warm brown (#1a1210).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Fonts. Families are pulled in (self-hosted, offline-friendly) by the UI via
+   @fontsource; here we only declare which family maps to sans/serif/mono. */
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Lora", ui-serif, Georgia, serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+/* ── Hearth (dark, default) ────────────────────────────────────────────────── */
+@plugin "daisyui/theme" {
+  name: "hearth";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+
+  /* Surfaces: base-100 = app background, 200/300 = raised panels */
+  --color-base-100: #1a1210;
+  --color-base-200: #241a16;
+  --color-base-300: #2e211c;
+  --color-base-content: #f0ebe2;
+
+  /* Copper — primary accent (buttons, AI orb, active states) */
+  --color-primary: #c4956a;
+  --color-primary-content: #1a1210;
+
+  /* Indigo — secondary accent */
+  --color-secondary: #6366f1;
+  --color-secondary-content: #f8f4ec;
+
+  /* Teal — tertiary accent ("All" / family-wide) */
+  --color-accent: #14b8a6;
+  --color-accent-content: #06201d;
+
+  /* Muted browns for subdued chrome */
+  --color-neutral: #2a201b;
+  --color-neutral-content: #b8a898;
+
+  /* Status colors (double as priority / who hints) */
+  --color-info: #3b82f6;
+  --color-info-content: #04111f;
+  --color-success: #10b981;
+  --color-success-content: #04140e;
+  --color-warning: #f59e0b;
+  --color-warning-content: #1f1402;
+  --color-error: #f43f5e;
+  --color-error-content: #1f040a;
+
+  /* Shape: rounded panels (20px), softer fields (10px) */
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Hearth Day (light) ────────────────────────────────────────────────────── */
+@plugin "daisyui/theme" {
+  name: "hearth-day";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #f8f4ec;
+  --color-base-200: #efe7d8;
+  --color-base-300: #e3d7c3;
+  --color-base-content: #2e211c;
+
+  --color-primary: #a9713f;
+  --color-primary-content: #fbf6ee;
+
+  --color-secondary: #4f46e5;
+  --color-secondary-content: #ffffff;
+
+  --color-accent: #0d9488;
+  --color-accent-content: #ffffff;
+
+  --color-neutral: #d8c8b2;
+  --color-neutral-content: #4a3a30;
+
+  --color-info: #2563eb;
+  --color-info-content: #ffffff;
+  --color-success: #059669;
+  --color-success-content: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-content: #ffffff;
+  --color-error: #e11d48;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}

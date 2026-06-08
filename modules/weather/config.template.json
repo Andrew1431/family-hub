@@ -1,0 +1,6 @@
+{
+  "$comment": "Weather settings. Copied to config.local.json (gitignored) on first run — edit that. lat/lon set your location; units is 'fahrenheit' or 'celsius'. (Open-Meteo needs no API key.)",
+  "lat": 40.71,
+  "lon": -74.01,
+  "units": "fahrenheit"
+}

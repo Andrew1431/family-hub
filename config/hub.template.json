@@ -1,0 +1,6 @@
+{
+  "$comment": "App-level settings. Copied to hub.local.json (gitignored) on first build; edit that. familyName fills the greeting; set showGreeting=false to hide it. theme must match a theme name from theme.local.css (e.g. 'hearth' or 'hearth-day').",
+  "familyName": "family",
+  "showGreeting": true,
+  "theme": "hearth"
+}

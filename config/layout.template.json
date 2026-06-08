@@ -1,0 +1,12 @@
+{
+  "$comment": "Dashboard layout. Copied to layout.local.json (gitignored) on first build; edit that to rearrange panels. Grid is `columns` wide and (optionally) `rows` tall — when `rows` is set, rows are equal-height and fill the screen; omit it to let rows grow to content. Each panel sets col/row start (1-based) and w/h span. Omit col/row to auto-flow. Panels with no entry use their module's manifest defaultSize.",
+  "columns": 12,
+  "rows": 6,
+  "panels": {
+    "clock": { "col": 1, "row": 1, "w": 8, "h": 2 },
+    "weather": { "col": 9, "row": 1, "w": 4, "h": 2 },
+    "calendar": { "col": 1, "row": 3, "w": 6, "h": 4 },
+    "todo": { "col": 7, "row": 3, "w": 6, "h": 4 }
+  },
+  "order": ["clock", "weather", "calendar", "todo"]
+}

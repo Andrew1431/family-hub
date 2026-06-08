@@ -1,0 +1,5 @@
+{
+  "$comment": "Assistant settings. Copied to config.local.json (gitignored) on first run — edit that. The API key is a SECRET and does NOT go here: set ANTHROPIC_API_KEY (or HUB_ASSISTANT_API_KEY) in the repo-root .env. model: any Claude model id. effort: low|medium|high|max (ignored on Haiku).",
+  "model": "claude-sonnet-4-6",
+  "effort": "low"
+}

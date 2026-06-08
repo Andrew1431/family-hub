@@ -1,0 +1,32 @@
+{
+  "name": "@hub/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node ../tooling/seed.mjs && node ../tooling/gen-modules.mjs",
+    "dev": "vite",
+    "prebuild": "node ../tooling/seed.mjs && node ../tooling/gen-modules.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/dm-mono": "^5.1.0",
+    "@fontsource/dm-sans": "^5.1.0",
+    "@fontsource/lora": "^5.1.0",
+    "@hub/sdk": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "daisyui": "^5.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+  }
+}

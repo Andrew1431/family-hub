@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm -v)",
+      "Bash(bun -v)",
+      "Bash(git --version)",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(mkdir -p packages/sdk/src packages/core/src packages/ui/src packages/tooling modules config)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm --filter @hub/sdk build)",
+      "Bash(node -e \"try{const{DatabaseSync}=require\\('node:sqlite'\\);const d=new DatabaseSync\\(':memory:'\\);d.exec\\('create table t\\(k text\\)'\\);console.log\\('node:sqlite OK, no flag needed'\\);}catch\\(e\\){console.log\\('FAIL:',e.message\\)}\")",
+      "Bash(pnpm --filter @hub/core typecheck)",
+      "Bash(pnpm rebuild *)",
+      "Bash(node -e \"require\\('esbuild'\\);console.log\\('esbuild loadable'\\)\")",
+      "Bash(PORT=4123 pnpm --filter @hub/core exec tsx src/index.ts)",
+      "Bash(echo \"started pid $!\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:4123/api/health)",
+      "Bash(curl -s http://localhost:4123/api/modules)",
+      "Bash(curl -s http://localhost:4123/api/m/clock/now)",
+      "Bash(kill %1)",
+      "Bash(pnpm seed *)",
+      "Bash(git add *)",
+      "Bash(git check-ignore *)",
+      "Bash(pnpm -r typecheck)",
+      "Bash(pnpm --filter @hub/ui build)",
+      "Bash(PORT=4310 pnpm --filter @hub/core exec tsx src/index.ts)",
+      "Bash(curl -s http://localhost:4310/api/config)",
+      "Bash(curl -s http://localhost:4310/api/layout)",
+      "Skill(claude-api)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm --filter @hub/ui exec tsc --noEmit)"
+    ]
+  }
+}

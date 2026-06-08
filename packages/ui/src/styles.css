@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Module frontends live outside this package (../../../modules/*), so Tailwind's
+   automatic content detection misses them. Without this, any daisyUI/utility
+   class used only inside a module (input, btn, paddings…) is never generated. */
+@source "../../../modules";
+
+/* Self-hosted fonts — no network needed (the mirror may be offline). */
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-mono/300.css";
+@import "@fontsource/dm-mono/400.css";
+@import "@fontsource/dm-mono/500.css";
+@import "@fontsource/lora/400.css";
+@import "@fontsource/lora/600.css";
+@import "@fontsource/lora/400-italic.css";
+
+@plugin "daisyui";
+
+/* Hearth theme(s) — local copy seeded from config/theme.template.css.
+   Edit config/theme.local.css to customize. */
+@import "../../../config/theme.local.css";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-base-content);
+  background-color: var(--color-base-100);
+  /* Soft ambient glows echoing the reference design. */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 10%, color-mix(in oklab, var(--color-primary) 14%, transparent), transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 90%, color-mix(in oklab, var(--color-secondary) 9%, transparent), transparent 60%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Frosted-glass panel surface used by every module card. */
+@utility panel {
+  border-radius: var(--radius-box);
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  background: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+/* Small uppercase section label (e.g. "WEATHER", "CALENDAR"). */
+@utility panel-label {
+  font-family: var(--font-serif);
+  font-size: 0.6875rem;
+  letter-spacing: 0.125em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+}
