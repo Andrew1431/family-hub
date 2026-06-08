@@ -51,49 +51,106 @@ const WMO: Record<number, { label: string; emoji: string }> = {
   99: { label: "Thunderstorm",     emoji: "⛈️"  },
 };
 
-function wmoLookup(code: number): { label: string; emoji: string } {
-  return WMO[code] ?? { label: "Unknown", emoji: "🌡️" };
+// Night-time icon overrides. Only the "sunny-ish" codes change after dark;
+// rain/snow/fog look the same at night so they fall through to the day emoji.
+const NIGHT_EMOJI: Record<number, string> = {
+  0: "🌙",  // Clear Sky
+  1: "🌙",  // Mainly Clear
+  2: "☁️",  // Partly Cloudy (no good "moon + cloud" emoji; plain cloud reads better)
+};
+
+function wmoLookup(code: number, isDay: boolean): { label: string; emoji: string } {
+  const base = WMO[code] ?? { label: "Unknown", emoji: "🌡️" };
+  const night = !isDay ? NIGHT_EMOJI[code] : undefined;
+  return { label: base.label, emoji: night ?? base.emoji };
 }
 
+// Temperatures are in whichever unit was requested; `unit` says which ("C"/"F")
+// so the frontend can render "22°C" vs "72°F" without guessing.
 export interface CurrentWeather {
-  tempF: number;
-  feelsLikeF: number;
+  temp: number;
+  feelsLike: number;
   condition: string;
   icon: string;
-  highF: number;
-  lowF: number;
+  high: number;
+  low: number;
   humidity: number;
+  uvIndex: number;
+  unit: "C" | "F";
 }
 
-// Mock shaped identically to what the real Open-Meteo fetch + parse would return.
-// Swap: replace this body with an actual fetch call using ctx.config lat/lon.
-export function buildCurrentWeather(): CurrentWeather {
-  const code = 2; // WMO 2 = Partly Cloudy
-  const { label, emoji } = wmoLookup(code);
-  // Temperatures are in °F. A "unit" config option can be added later.
+interface OpenMeteoResponse {
+  current: {
+    temperature_2m: number;
+    apparent_temperature: number;
+    relative_humidity_2m: number;
+    weather_code: number;
+    uv_index: number;
+    is_day: number;
+  };
+  daily: {
+    temperature_2m_max: number[];
+    temperature_2m_min: number[];
+  };
+}
+
+async function fetchCurrentWeather(
+  lat: number,
+  lon: number,
+  units: string,
+): Promise<CurrentWeather> {
+  const fahrenheit = units.toLowerCase() === "fahrenheit";
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", String(lat));
+  url.searchParams.set("longitude", String(lon));
+  url.searchParams.set(
+    "current",
+    "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,uv_index,is_day",
+  );
+  url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min");
+  url.searchParams.set("temperature_unit", fahrenheit ? "fahrenheit" : "celsius");
+  url.searchParams.set("timezone", "auto");
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const j = (await res.json()) as OpenMeteoResponse;
+  const { label, emoji } = wmoLookup(j.current.weather_code, j.current.is_day === 1);
+
   return {
-    tempF: 72,
-    feelsLikeF: 68,
+    temp: Math.round(j.current.temperature_2m),
+    feelsLike: Math.round(j.current.apparent_temperature),
     condition: label,
     icon: emoji,
-    highF: 76,
-    lowF: 58,
-    humidity: 54,
+    high: Math.round(j.daily.temperature_2m_max[0] ?? j.current.temperature_2m),
+    low: Math.round(j.daily.temperature_2m_min[0] ?? j.current.temperature_2m),
+    humidity: Math.round(j.current.relative_humidity_2m),
+    uvIndex: Math.round(j.current.uv_index),
+    unit: fahrenheit ? "F" : "C",
   };
 }
 
 export default defineBackend((ctx) => {
+  // Read config per-request so settings changes apply without a restart.
+  const current = async (): Promise<CurrentWeather> => {
+    const lat = Number(await ctx.config.get("lat"));
+    const lon = Number(await ctx.config.get("lon"));
+    const units = String((await ctx.config.get("units")) ?? "fahrenheit");
+    return fetchCurrentWeather(lat, lon, units);
+  };
+
   ctx.capabilities.register({
     name: "weather_current",
     description:
-      "Get the current weather conditions: temperature (°F), feels-like, condition, " +
-      "daily high/low, and humidity. Useful for answering questions about today's weather.",
+      "Get the current weather conditions: temperature, feels-like, condition, " +
+      "daily high/low, and humidity (temperatures use the unit configured for the " +
+      "hub; the returned `unit` field is 'C' or 'F'). Useful for answering questions " +
+      "about today's weather.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnly: true },
-    handler: () => buildCurrentWeather(),
+    handler: () => current(),
   });
 
-  ctx.route("GET", "/current", () => buildCurrentWeather());
+  ctx.route("GET", "/current", () => current());
 
   ctx.log.info("weather backend ready");
 });

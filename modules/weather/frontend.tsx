@@ -47,7 +47,7 @@ function WeatherPanel(_props: PanelProps) {
             className="font-mono font-light leading-none text-base-content"
             style={{ fontSize: "clamp(32px, 4.5vw, 48px)" }}
           >
-            {data.tempF}°
+            {data.temp}°{data.unit}
           </div>
           <div
             className="mt-1 font-serif italic text-base-content/60"
@@ -59,11 +59,12 @@ function WeatherPanel(_props: PanelProps) {
       </div>
 
       {/* High / Low / Humidity */}
-      <div className="grid grid-cols-3 gap-2 border-t border-base-content/10 pt-2">
+      <div className="grid grid-cols-4 gap-2 border-t border-base-content/10 pt-2">
         {[
-          { label: "High",     value: `${data.highF}°` },
-          { label: "Low",      value: `${data.lowF}°` },
+          { label: "High",     value: `${data.high}°` },
+          { label: "Low",      value: `${data.low}°` },
           { label: "Humidity", value: `${data.humidity}%` },
+          { label: "UV",       value: `${data.uvIndex}` },
         ].map(({ label, value }) => (
           <div key={label} className="flex flex-col items-center gap-0.5">
             <span
