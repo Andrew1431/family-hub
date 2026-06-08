@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 
@@ -115,12 +115,249 @@ function EventRow({ event }: { event: ResolvedEvent }) {
   );
 }
 
+// ── Shared Google types (mirror backend google.ts) ───────────────────────────
+
+interface GoogleCalendar {
+  id: string;
+  name: string;
+  color: string;
+  enabled: boolean;
+  primary?: boolean;
+  writable?: boolean;
+}
+
+interface GoogleAccount {
+  id: string;
+  email: string;
+  name: string;
+  calendars: GoogleCalendar[];
+}
+
+interface WriteTarget {
+  accountId: string;
+  calendarId: string;
+}
+
+interface OAuthStatus {
+  configured: boolean;
+  redirectUri: string;
+  accounts: GoogleAccount[];
+  writeTarget: WriteTarget | null;
+}
+
+interface WritableCalendar {
+  accountId: string;
+  id: string;
+  name: string;
+}
+
+function writableCalendars(accounts: GoogleAccount[]): WritableCalendar[] {
+  return accounts.flatMap((a) =>
+    a.calendars
+      .filter((c) => c.enabled && c.writable)
+      .map((c) => ({ accountId: a.id, id: c.id, name: c.name })),
+  );
+}
+
+// ── Lightweight modal (module-local; the shell's modal isn't importable here) ─
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="panel relative z-[1] flex max-h-[85vh] w-[min(420px,96vw)] flex-col overflow-hidden p-0 shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
+      >
+        <div className="flex items-center gap-3 border-b border-base-content/10 bg-primary/[0.06] p-4">
+          <div className="flex-1 font-sans text-sm font-semibold text-base-content">{title}</div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-base-content/10 bg-base-content/5 text-base-content/60 hover:text-base-content"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add-event form (basic: title + date + start/end, optional calendar) ───────
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function defaultDateTime(): { date: string; start: string; end: string } {
+  const now = new Date();
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start.getTime() + 3_600_000);
+  const dateStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+  return {
+    date: dateStr,
+    start: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+    end: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+  };
+}
+
+/** Combine a local date + "HH:mm" into an ISO string. */
+function toIso(date: string, time: string): string {
+  return new Date(`${date}T${time}`).toISOString();
+}
+
+function AddEventModal({
+  cals,
+  writeTarget,
+  onClose,
+  onCreated,
+}: {
+  cals: WritableCalendar[];
+  writeTarget: WriteTarget | null;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const init = defaultDateTime();
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(init.date);
+  const [start, setStart] = useState(init.start);
+  const [end, setEnd] = useState(init.end);
+  const [calendarId, setCalendarId] = useState(writeTarget?.calendarId ?? cals[0]?.id ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!title.trim()) {
+      setError("Give the event a title.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/m/calendar-google/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: title.trim(),
+          start: toIso(date, start),
+          end: toIso(date, end),
+          ...(calendarId ? { calendarId } : {}),
+        }),
+      });
+      const result = (await res.json()) as { ok: boolean; message?: string };
+      if (!result.ok) {
+        setError(result.message ?? "Could not create the event.");
+        setSaving(false);
+        return;
+      }
+      onCreated();
+      onClose();
+    } catch {
+      setError("Network error.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="New event" onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="panel-label">Title</span>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Dentist, dinner with Sam…"
+            className="input input-sm bg-base-content/5 border-base-content/10"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="panel-label">Date</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="input input-sm bg-base-content/5 border-base-content/10"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="panel-label">Start</span>
+            <input
+              type="time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className="input input-sm bg-base-content/5 border-base-content/10"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="panel-label">End</span>
+            <input
+              type="time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              className="input input-sm bg-base-content/5 border-base-content/10"
+            />
+          </label>
+        </div>
+        {cals.length > 1 && (
+          <label className="flex flex-col gap-1">
+            <span className="panel-label">Calendar</span>
+            <select
+              value={calendarId}
+              onChange={(e) => setCalendarId(e.target.value)}
+              className="select select-sm bg-base-content/5 border-base-content/10"
+            >
+              {cals.map((c) => (
+                <option key={`${c.accountId}:${c.id}`} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {error && <p className="font-serif italic text-xs text-error/80">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving…" : "Add event"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function CalendarPanel(_props: PanelProps) {
   const [events, setEvents] = useState<ResolvedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cals, setCals] = useState<WritableCalendar[]>([]);
+  const [writeTarget, setWriteTarget] = useState<WriteTarget | null>(null);
+  const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
+  function loadEvents() {
     fetch("/api/m/calendar-google/events")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -134,13 +371,39 @@ function CalendarPanel(_props: PanelProps) {
         setError(err instanceof Error ? err.message : "Failed to load");
         setLoading(false);
       });
+  }
+
+  useEffect(() => {
+    loadEvents();
+    // Learn whether we can write (any enabled+writable Google calendar).
+    fetch("/api/m/calendar-google/oauth/status")
+      .then((r) => r.json() as Promise<OAuthStatus>)
+      .then((s) => {
+        setCals(writableCalendars(s.accounts));
+        setWriteTarget(s.writeTarget);
+      })
+      .catch(() => {});
   }, []);
 
   const groups = groupByDay(events);
+  const canWrite = cals.length > 0;
 
   return (
     <div className="flex flex-col gap-3.5 h-full overflow-hidden p-1">
-      <div className="panel-label shrink-0">Calendar</div>
+      <div className="flex shrink-0 items-center justify-between">
+        <span className="panel-label">Calendar</span>
+        {canWrite && (
+          <button
+            onClick={() => setAdding(true)}
+            aria-label="New event"
+            className="grid h-6 w-6 place-items-center rounded-lg text-base-content/45 hover:bg-base-content/10 hover:text-base-content/80"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {loading && (
         <div className="font-serif italic text-base-content/40 text-[13px]">
@@ -176,6 +439,15 @@ function CalendarPanel(_props: PanelProps) {
             ))}
           </div>
         )
+      )}
+
+      {adding && (
+        <AddEventModal
+          cals={cals}
+          writeTarget={writeTarget}
+          onClose={() => setAdding(false)}
+          onCreated={loadEvents}
+        />
       )}
     </div>
   );
@@ -413,14 +685,243 @@ function CalendarSettings({ onClose }: SettingsProps) {
         )}
       </div>
 
+      <GoogleSettings />
+
       <div className="flex justify-end gap-2 border-t border-base-content/10 pt-3">
         <button className="btn btn-sm btn-ghost" onClick={onClose}>
           Cancel
         </button>
         <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving…" : "Save subscriptions"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Settings: Google accounts (OAuth) ─────────────────────────────────────────
+
+function GoogleSettings() {
+  const [status, setStatus] = useState<OAuthStatus | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [savingClient, setSavingClient] = useState(false);
+  const [savingCals, setSavingCals] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function load() {
+    fetch("/api/m/calendar-google/oauth/status")
+      .then((r) => r.json() as Promise<OAuthStatus>)
+      .then(setStatus)
+      .catch(() => {});
+  }
+
+  useEffect(load, []);
+
+  async function saveClient() {
+    if (!clientId.trim() || !clientSecret.trim()) return;
+    setSavingClient(true);
+    await fetch("/api/m/calendar-google/oauth/client", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+    });
+    setSavingClient(false);
+    setClientId("");
+    setClientSecret("");
+    load();
+  }
+
+  function connect() {
+    const popup = window.open(
+      "/api/m/calendar-google/oauth/start",
+      "google-oauth",
+      "width=520,height=640",
+    );
+    // The popup closes itself on success; refresh once it's gone.
+    const timer = setInterval(() => {
+      if (!popup || popup.closed) {
+        clearInterval(timer);
+        load();
+      }
+    }, 800);
+  }
+
+  function patchCal(accountId: string, calId: string, fields: Partial<GoogleCalendar>) {
+    setStatus((prev) =>
+      prev
+        ? {
+            ...prev,
+            accounts: prev.accounts.map((a) =>
+              a.id === accountId
+                ? { ...a, calendars: a.calendars.map((c) => (c.id === calId ? { ...c, ...fields } : c)) }
+                : a,
+            ),
+          }
+        : prev,
+    );
+  }
+
+  function setWriteTarget(target: WriteTarget | null) {
+    setStatus((prev) => (prev ? { ...prev, writeTarget: target } : prev));
+  }
+
+  async function saveCalendars() {
+    if (!status) return;
+    setSavingCals(true);
+    await fetch("/api/m/calendar-google/accounts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accounts: status.accounts, writeTarget: status.writeTarget }),
+    });
+    setSavingCals(false);
+    load();
+  }
+
+  async function disconnect(id: string) {
+    await fetch(`/api/m/calendar-google/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
+    load();
+  }
+
+  if (!status) return null;
+
+  const writable = status ? writableCalendars(status.accounts) : [];
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-base-content/10 pt-4">
+      <div className="panel-label">Google accounts</div>
+
+      {!status.configured ? (
+        <div className="flex flex-col gap-2">
+          <p className="font-serif italic text-xs text-base-content/45">
+            Create one “Web application” OAuth client in Google Cloud (shared by all Google
+            modules). Set <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
+            <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in <code className="font-mono">.env</code>{" "}
+            and restart — or paste them below. Either way, register this exact redirect URI:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
+              {status.redirectUri}
+            </code>
+            <button
+              className="btn btn-xs btn-ghost"
+              onClick={() => {
+                void navigator.clipboard?.writeText(status.redirectUri);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <input
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            placeholder="Client ID"
+            className="input input-sm bg-base-content/5 border-base-content/10 font-mono text-xs"
+          />
+          <input
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            placeholder="Client secret"
+            type="password"
+            className="input input-sm bg-base-content/5 border-base-content/10 font-mono text-xs"
+          />
+          <button
+            className="btn btn-sm btn-primary self-start"
+            onClick={() => void saveClient()}
+            disabled={!clientId.trim() || !clientSecret.trim() || savingClient}
+          >
+            {savingClient ? "Saving…" : "Save client"}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {status.accounts.length === 0 ? (
+            <p className="font-serif italic text-xs text-base-content/45">
+              Client configured. Connect an account to choose calendars.
+            </p>
+          ) : (
+            status.accounts.map((acct) => (
+              <div
+                key={acct.id}
+                className="flex flex-col gap-1.5 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
+                    {acct.email}
+                  </span>
+                  <button
+                    onClick={() => void disconnect(acct.id)}
+                    className="text-[11px] text-base-content/40 hover:text-error"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                {acct.calendars.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 pl-1">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-xs"
+                      checked={c.enabled}
+                      onChange={(e) => patchCal(acct.id, c.id, { enabled: e.target.checked })}
+                    />
+                    <input
+                      type="color"
+                      value={c.color}
+                      onChange={(e) => patchCal(acct.id, c.id, { color: e.target.value })}
+                      className="h-4 w-4 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                      aria-label={`${c.name} colour`}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-sans text-xs text-base-content/80">
+                      {c.name}
+                      {!c.writable && (
+                        <span className="ml-1 text-[10px] text-base-content/35">(read-only)</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ))
+          )}
+
+          <div className="flex items-center gap-2">
+            <button className="btn btn-sm btn-ghost" onClick={connect}>
+              + Connect account
+            </button>
+            {status.accounts.length > 0 && (
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => void saveCalendars()}
+                disabled={savingCals}
+              >
+                {savingCals ? "Saving…" : "Save calendars"}
+              </button>
+            )}
+          </div>
+
+          {writable.length > 0 && (
+            <label className="flex flex-col gap-1">
+              <span className="panel-label">New events go to</span>
+              <select
+                value={status.writeTarget?.calendarId ?? ""}
+                onChange={(e) => {
+                  const cal = writable.find((w) => w.id === e.target.value);
+                  setWriteTarget(cal ? { accountId: cal.accountId, calendarId: cal.id } : null);
+                }}
+                className="select select-sm bg-base-content/5 border-base-content/10"
+              >
+                <option value="">— none —</option>
+                {writable.map((w) => (
+                  <option key={`${w.accountId}:${w.id}`} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { FastifyInstance } from "fastify";
 import type { ModuleManifest, ModuleBackend, RouteRegistrar, RouteHandlerArgs } from "@hub/sdk";
+import { isRawResponse } from "@hub/sdk";
 import type { Db } from "./db.js";
 import type { GlobalCapabilityRegistry } from "./registry.js";
 import type { GlobalEventBus } from "./bus.js";
@@ -120,12 +121,21 @@ export async function loadModules(deps: LoaderDeps): Promise<LoadedModule[]> {
               scope.route({
                 method,
                 url: path.startsWith("/") ? path : `/${path}`,
-                handler: async (req) =>
-                  handler({
+                handler: async (req, reply) => {
+                  const out = await handler({
                     params: req.params as RouteHandlerArgs["params"],
                     query: req.query as RouteHandlerArgs["query"],
                     body: req.body,
-                  }),
+                  });
+                  // A handler may return a RawResponse to control the raw HTTP
+                  // reply (HTML pages, redirects); otherwise it's JSON.
+                  if (isRawResponse(out)) {
+                    reply.code(out.status);
+                    if (out.headers) reply.headers(out.headers);
+                    return reply.send(out.body);
+                  }
+                  return out;
+                },
               });
             };
             const ctx = buildContext(manifest.name, {

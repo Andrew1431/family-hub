@@ -1,18 +1,31 @@
 import ical from "node-ical";
 import type { VEvent } from "node-ical";
-import { defineBackend } from "@hub/sdk";
+import { defineBackend, html, redirect, type KVStore } from "@hub/sdk";
+import {
+  accessTokenFor,
+  authUrl,
+  clearTokenCache,
+  exchangeCode,
+  fetchCalendarList,
+  fetchEvents,
+  getCreds,
+  insertEvent,
+  revokeToken,
+  type GoogleAccount,
+  type GoogleCalendar,
+  type ResolvedEvent,
+} from "./google";
 
 /*
- * Phase 2 — ICS subscriptions (read-only).
+ * Calendar module — two read sources, one write target.
  *
- * A subscription is any iCalendar feed URL: Google's "secret address in iCal
- * format", an Outlook/work published calendar, a sports schedule, etc. Each is
- * fetched, parsed (node-ical handles folding, VTIMEZONE, RRULE), merged into a
- * single sorted stream, and tagged with the subscription's name + colour so the
- * panel can show "whose" calendar each event belongs to.
+ *  • ICS subscriptions (Phase 2): any iCalendar feed URL, read-only. node-ical
+ *    handles folding / VTIMEZONE / RRULE; tagged with name + colour.
+ *  • Google accounts (Phase 3): OAuth-connected calendars, read AND write.
+ *    Google expands recurrences server-side, so the REST path is simple.
  *
- * Writing events (calendar_add_event) needs a Google OAuth account — that lands
- * in Phase 3. Until then the add capability reports that it isn't connected yet.
+ * `/events` merges both into one sorted stream. Event creation (a deliberately
+ * basic title + start + end) writes to the configured Google "write target".
  */
 
 interface IcsSubscription {
@@ -23,19 +36,14 @@ interface IcsSubscription {
   enabled: boolean;
 }
 
-interface ResolvedEvent {
-  id: string;
-  summary: string;
-  start: string; // ISO
-  end: string; // ISO
-  allDay: boolean;
-  calendarId: string; // subscription id
-  calendarName: string;
-  color: string;
-  location?: string;
+interface WriteTarget {
+  accountId: string;
+  calendarId: string;
 }
 
 const DEFAULT_COLOR = "#8b5cf6";
+const DEFAULT_REDIRECT_BASE = "http://localhost:4000";
+const OAUTH_STATE_TTL_MS = 10 * 60_000;
 const DEFAULT_WINDOW_DAYS = 21;
 const FETCH_TIMEOUT_MS = 8_000;
 const CACHE_TTL_MS = 5 * 60_000;
@@ -262,16 +270,143 @@ function windowFrom(query: { from?: string; to?: string }): { fromMs: number; to
   return { fromMs, toMs };
 }
 
+// ── Google accounts (config is non-secret; tokens live in secrets) ───────────
+
+async function getAccounts(config: KVStore): Promise<GoogleAccount[]> {
+  const a = await config.get<GoogleAccount[]>("accounts");
+  return Array.isArray(a) ? a : [];
+}
+
+async function getWriteTarget(config: KVStore): Promise<WriteTarget | null> {
+  const w = await config.get<WriteTarget>("writeTarget");
+  return w && w.accountId && w.calendarId ? w : null;
+}
+
+function redirectUriFrom(base: string | undefined): string {
+  return `${(base ?? DEFAULT_REDIRECT_BASE).replace(/\/$/, "")}/api/m/calendar-google/oauth/callback`;
+}
+
+async function collectGoogleEvents(
+  accounts: GoogleAccount[],
+  secrets: KVStore,
+  fromIso: string,
+  toIso: string,
+  log: { warn(m: string, meta?: unknown): void },
+): Promise<ResolvedEvent[]> {
+  const out: ResolvedEvent[] = [];
+  for (const account of accounts) {
+    const enabledCals = account.calendars.filter((c) => c.enabled);
+    if (enabledCals.length === 0) continue;
+    let accessToken: string;
+    try {
+      accessToken = await accessTokenFor(secrets, account.id);
+    } catch (err) {
+      log.warn(`google account "${account.email}" auth failed: ${String(err)}`);
+      continue; // skip this account; reconnect surfaces in settings status
+    }
+    const perCal = await Promise.all(
+      enabledCals.map(async (cal: GoogleCalendar) => {
+        try {
+          return await fetchEvents(accessToken, cal, fromIso, toIso);
+        } catch (err) {
+          log.warn(`google calendar "${cal.name}" failed: ${String(err)}`);
+          return [] as ResolvedEvent[];
+        }
+      }),
+    );
+    for (const list of perCal) out.push(...list);
+  }
+  return out;
+}
+
+// ── OAuth CSRF state (in-memory; single process) ─────────────────────────────
+
+const oauthStates = new Map<string, number>();
+
+function newState(): string {
+  const s = crypto.randomUUID();
+  oauthStates.set(s, Date.now());
+  return s;
+}
+
+function consumeState(state: string): boolean {
+  const at = oauthStates.get(state);
+  if (at === undefined) return false;
+  oauthStates.delete(state);
+  return Date.now() - at < OAUTH_STATE_TTL_MS;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+
+/** The page shown in the OAuth popup; closes itself on success. */
+function oauthPage(message: string, ok: boolean): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Family Hub</title>
+<style>body{font-family:system-ui,sans-serif;background:#1a1210;color:#f0e6dd;display:grid;place-items:center;height:100vh;margin:0}
+.card{max-width:420px;text-align:center;padding:2rem}.ico{font-size:3rem}.msg{margin-top:1rem;line-height:1.5;color:#cbb7ad}</style></head>
+<body><div class="card"><div class="ico">${ok ? "✅" : "⚠️"}</div><div class="msg">${escapeHtml(message)}</div></div>
+<script>setTimeout(function(){window.close()}, ${ok ? 1500 : 6000})</script></body></html>`;
+}
+
 // ── Backend ──────────────────────────────────────────────────────────────────
 
 export default defineBackend((ctx) => {
   async function listEvents(query: { from?: string; to?: string }): Promise<ResolvedEvent[]> {
-    const subs = await getSubscriptions(ctx.config);
     const { fromMs, toMs } = windowFrom(query);
-    const results = await collectEvents(subs, fromMs, toMs, ctx.log);
-    return results
-      .flatMap((r) => r.events)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    const subs = await getSubscriptions(ctx.config);
+    const accounts = await getAccounts(ctx.config);
+    const [icsResults, googleEvents] = await Promise.all([
+      collectEvents(subs, fromMs, toMs, ctx.log),
+      collectGoogleEvents(
+        accounts,
+        ctx.secrets,
+        new Date(fromMs).toISOString(),
+        new Date(toMs).toISOString(),
+        ctx.log,
+      ),
+    ]);
+    return [...icsResults.flatMap((r) => r.events), ...googleEvents].sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+    );
+  }
+
+  // Create a basic event (title + start + end) on the chosen calendar, or the
+  // configured write target. Returns {ok:false,message} rather than throwing so
+  // the assistant can relay a friendly reason.
+  async function createEvent(input: {
+    summary: string;
+    start: string;
+    end?: string;
+    calendarId?: string;
+  }): Promise<{ ok: boolean; id?: string; htmlLink?: string; message?: string }> {
+    const accounts = await getAccounts(ctx.config);
+    let target: WriteTarget | null = null;
+    if (input.calendarId) {
+      const acct = accounts.find((a) => a.calendars.some((c) => c.id === input.calendarId));
+      if (acct) target = { accountId: acct.id, calendarId: input.calendarId };
+    }
+    target ??= await getWriteTarget(ctx.config);
+    if (!target) {
+      return {
+        ok: false,
+        message:
+          "No writable calendar is connected. Connect a Google account and pick " +
+          "a write target in calendar settings first.",
+      };
+    }
+    const end =
+      input.end ?? new Date(new Date(input.start).getTime() + 3_600_000).toISOString();
+    const accessToken = await accessTokenFor(ctx.secrets, target.accountId);
+    const created = await insertEvent(accessToken, target.calendarId, {
+      summary: input.summary,
+      start: input.start,
+      end,
+    });
+    return { ok: true, id: created.id, ...(created.htmlLink ? { htmlLink: created.htmlLink } : {}) };
   }
 
   ctx.capabilities.register({
@@ -295,8 +430,8 @@ export default defineBackend((ctx) => {
   ctx.capabilities.register({
     name: "calendar_add_event",
     description:
-      "Add an event to the family calendar. Requires a connected Google " +
-      "account with write access.",
+      "Add a basic event (title, start, end) to the family calendar's write " +
+      "target. For one-off events only — no recurrence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -308,13 +443,13 @@ export default defineBackend((ctx) => {
       additionalProperties: false,
     },
     annotations: { requiresConfirmation: true },
-    // ICS feeds are read-only; writing needs the Phase 3 OAuth account.
-    handler: () => ({
-      ok: false,
-      message:
-        "I can't add events yet — connect a Google account in the calendar " +
-        "settings to enable writing. ICS subscriptions are read-only.",
-    }),
+    handler: async (input: { summary: string; start: string; end?: string }) => {
+      try {
+        return await createEvent(input);
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+    },
   });
 
   // Merged event stream for the panel.
@@ -360,5 +495,152 @@ export default defineBackend((ctx) => {
     }
   });
 
-  ctx.log.info("calendar-google backend ready (ICS subscriptions)");
+  // ── Google OAuth + account management ──────────────────────────────────────
+
+  // Snapshot for the settings UI: whether the client is configured, the exact
+  // redirect URI to register in Google Cloud, connected accounts (non-secret),
+  // and the current write target.
+  ctx.route("GET", "/oauth/status", async () => {
+    const creds = await getCreds(ctx.secrets);
+    const redirectBase = await ctx.config.get<string>("redirectBase");
+    return {
+      configured: Boolean(creds),
+      redirectUri: redirectUriFrom(redirectBase),
+      accounts: await getAccounts(ctx.config),
+      writeTarget: await getWriteTarget(ctx.config),
+    };
+  });
+
+  // Store the per-deployment OAuth client (write-only; never read back to UI).
+  ctx.route("PUT", "/oauth/client", async ({ body }) => {
+    const b = body as { clientId?: string; clientSecret?: string } | undefined;
+    const clientId = b?.clientId?.trim();
+    const clientSecret = b?.clientSecret?.trim();
+    if (!clientId || !clientSecret) {
+      return { ok: false, error: "clientId and clientSecret are required" };
+    }
+    await ctx.secrets.set("clientId", clientId);
+    await ctx.secrets.set("clientSecret", clientSecret);
+    return { ok: true };
+  });
+
+  // Kick off consent: open this URL in a popup; it 302s to Google.
+  ctx.route("GET", "/oauth/start", async () => {
+    const creds = await getCreds(ctx.secrets);
+    if (!creds) {
+      return html(
+        oauthPage("Add your Google Client ID and Secret in calendar settings first.", false),
+      );
+    }
+    const redirectBase = await ctx.config.get<string>("redirectBase");
+    return redirect(authUrl(creds, redirectUriFrom(redirectBase), newState()));
+  });
+
+  // Google redirects back here with ?code&state. We exchange, identify the
+  // account via its primary calendar, store the refresh token, and snapshot
+  // the calendar list.
+  ctx.route("GET", "/oauth/callback", async ({ query }) => {
+    const q = query as { code?: string; state?: string; error?: string };
+    if (q.error) return html(oauthPage(`Google sign-in was cancelled (${q.error}).`, false));
+    if (!q.code || !q.state || !consumeState(q.state)) {
+      return html(oauthPage("Invalid or expired sign-in attempt. Please try again.", false));
+    }
+    try {
+      const creds = await getCreds(ctx.secrets);
+      if (!creds) return html(oauthPage("Google client isn't configured.", false));
+      const redirectBase = await ctx.config.get<string>("redirectBase");
+      const tokens = await exchangeCode(creds, redirectUriFrom(redirectBase), q.code);
+
+      const calendars = await fetchCalendarList(tokens.accessToken);
+      const primary = calendars.find((c) => c.primary);
+      const accountId = primary?.id ?? "unknown";
+
+      if (tokens.refreshToken) {
+        await ctx.secrets.set(`refresh:${accountId}`, tokens.refreshToken);
+      } else if (!(await ctx.secrets.get<string>(`refresh:${accountId}`))) {
+        return html(
+          oauthPage(
+            "Google didn't return a refresh token. Remove Family Hub at " +
+              "myaccount.google.com/permissions, then reconnect.",
+            false,
+          ),
+        );
+      }
+
+      // Preserve prior enable/colour choices; default the primary calendar on.
+      const accounts = await getAccounts(ctx.config);
+      const prior = accounts.find((a) => a.id === accountId);
+      const mergedCalendars: GoogleCalendar[] = calendars.map((c) => {
+        const pc = prior?.calendars.find((x) => x.id === c.id);
+        if (pc) return { ...c, enabled: pc.enabled, color: pc.color };
+        return c.primary ? { ...c, enabled: true } : c;
+      });
+      const account: GoogleAccount = {
+        id: accountId,
+        email: accountId,
+        name: primary?.name ?? accountId,
+        calendars: mergedCalendars,
+      };
+      const next = prior
+        ? accounts.map((a) => (a.id === accountId ? account : a))
+        : [...accounts, account];
+      await ctx.config.set("accounts", next);
+
+      if (!(await getWriteTarget(ctx.config)) && primary?.writable) {
+        await ctx.config.set("writeTarget", { accountId, calendarId: primary.id });
+      }
+      clearTokenCache(accountId);
+      return html(oauthPage(`Connected ${accountId}. You can close this window.`, true));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      ctx.log.warn(`oauth callback failed: ${message}`);
+      return html(oauthPage(`Sign-in failed: ${message}`, false));
+    }
+  });
+
+  // Persist calendar enable/colour choices + write target from the settings UI.
+  ctx.route("PUT", "/accounts", async ({ body }) => {
+    const b = body as { accounts?: GoogleAccount[]; writeTarget?: WriteTarget | null } | undefined;
+    if (Array.isArray(b?.accounts)) await ctx.config.set("accounts", b.accounts);
+    if (b && "writeTarget" in b) await ctx.config.set("writeTarget", b.writeTarget ?? null);
+    return { ok: true };
+  });
+
+  // Disconnect: revoke the grant and drop all trace of the account.
+  ctx.route("DELETE", "/accounts/:id", async ({ params }) => {
+    const id = params.id;
+    if (!id) return { ok: false, error: "missing account id" };
+    const refresh = await ctx.secrets.get<string>(`refresh:${id}`);
+    if (refresh) await revokeToken(refresh);
+    await ctx.secrets.delete(`refresh:${id}`);
+    clearTokenCache(id);
+    const accounts = await getAccounts(ctx.config);
+    await ctx.config.set(
+      "accounts",
+      accounts.filter((a) => a.id !== id),
+    );
+    const writeTarget = await getWriteTarget(ctx.config);
+    if (writeTarget?.accountId === id) await ctx.config.set("writeTarget", null);
+    return { ok: true };
+  });
+
+  // Create a basic event from the panel's "+" form.
+  ctx.route("POST", "/create", async ({ body }) => {
+    const b = body as
+      | { summary?: string; start?: string; end?: string; calendarId?: string }
+      | undefined;
+    if (!b?.summary || !b.start) return { ok: false, message: "summary and start are required" };
+    try {
+      return await createEvent({
+        summary: b.summary,
+        start: b.start,
+        ...(b.end ? { end: b.end } : {}),
+        ...(b.calendarId ? { calendarId: b.calendarId } : {}),
+      });
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ctx.log.info("calendar-google backend ready (ICS + Google accounts)");
 });
