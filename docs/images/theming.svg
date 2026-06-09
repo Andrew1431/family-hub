@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 440" width="560" height="440" role="img" aria-label="Theming placeholder">
+  <rect width="280" height="440" fill="#231915"/>
+  <rect x="280" width="280" height="440" fill="#faf6ec"/>
+  <rect x="28" y="48" width="224" height="150" rx="14" fill="#2f221b" stroke="#c4956a" stroke-opacity="0.3"/>
+  <rect x="28" y="214" width="224" height="178" rx="14" fill="#2f221b" stroke="#c4956a" stroke-opacity="0.3"/>
+  <circle cx="64" cy="84" r="14" fill="#c4956a"/>
+  <rect x="308" y="48" width="224" height="150" rx="14" fill="#f3ecdc" stroke="#e6dcc7"/>
+  <rect x="308" y="214" width="224" height="178" rx="14" fill="#f3ecdc" stroke="#e6dcc7"/>
+  <circle cx="344" cy="84" r="14" fill="#a9713f"/>
+  <text x="280" y="424" text-anchor="middle" font-family="DM Mono, monospace" font-size="12" fill="#8a7a6a" letter-spacing="2">DARK &amp; LIGHT · REPLACE</text>
+</svg>

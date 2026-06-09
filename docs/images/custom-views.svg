@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 440" width="560" height="440" role="img" aria-label="Customizable layouts placeholder">
+  <rect width="560" height="440" fill="#231915"/>
+  <g stroke="#c4956a" stroke-opacity="0.22" fill="#2f221b">
+    <rect x="32" y="40" width="150" height="150" rx="14"/>
+    <rect x="198" y="40" width="330" height="70" rx="14"/>
+    <rect x="198" y="126" width="160" height="64" rx="14"/>
+    <rect x="374" y="126" width="154" height="64" rx="14"/>
+    <rect x="32" y="210" width="240" height="180" rx="14"/>
+    <rect x="288" y="210" width="240" height="86" rx="14"/>
+    <rect x="288" y="312" width="240" height="78" rx="14"/>
+  </g>
+  <g fill="#c4956a">
+    <circle cx="64" cy="416" r="6"/><circle cx="86" cy="416" r="6" fill="#6b5a4d"/><circle cx="108" cy="416" r="6" fill="#6b5a4d"/>
+  </g>
+  <text x="430" y="421" text-anchor="middle" font-family="DM Mono, monospace" font-size="12" fill="#6b5a4d" letter-spacing="2">MULTIPLE VIEWS · REPLACE</text>
+</svg>

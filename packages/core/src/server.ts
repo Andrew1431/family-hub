@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify from "fastify";
 import websocket from "@fastify/websocket";
@@ -77,11 +77,39 @@ export async function startServer(opts: ServerOptions = {}): Promise<void> {
       return reply.code(500).send({ error: "layout config unreadable" });
     }
   });
+  // Hub config is a flat object, so (unlike layout) we merge template defaults
+  // under the local override — new keys added to the template surface even when
+  // an older hub.local.json predates them.
+  const readHubConfig = (): Record<string, unknown> => {
+    const template = JSON.parse(readFileSync(join(paths.configDir, "hub.template.json"), "utf8"));
+    const localPath = join(paths.configDir, "hub.local.json");
+    const local = existsSync(localPath) ? JSON.parse(readFileSync(localPath, "utf8")) : {};
+    return { ...template, ...local };
+  };
   app.get("/api/config", async (_req, reply) => {
     try {
-      return readConfig("hub");
+      return readHubConfig();
     } catch {
       return reply.code(500).send({ error: "hub config unreadable" });
+    }
+  });
+  // Persist a partial hub-config update to hub.local.json (gitignored). Read live
+  // by GET above, so a Settings UI takes effect without a rebuild or restart.
+  app.put("/api/config", async (req, reply) => {
+    const body = req.body;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return reply.code(400).send({ error: "body must be a config object" });
+    }
+    try {
+      const localPath = join(paths.configDir, "hub.local.json");
+      const base = existsSync(localPath)
+        ? JSON.parse(readFileSync(localPath, "utf8"))
+        : readHubConfig();
+      const merged = { ...base, ...(body as Record<string, unknown>) };
+      writeFileSync(localPath, JSON.stringify(merged, null, 2) + "\n");
+      return readHubConfig();
+    } catch {
+      return reply.code(500).send({ error: "hub config unwritable" });
     }
   });
 

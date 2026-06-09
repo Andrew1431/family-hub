@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 440" width="560" height="440" role="img" aria-label="Interactive dashboard placeholder">
+  <rect width="560" height="440" fill="#faf6ec"/>
+  <rect x="32" y="40" width="496" height="56" rx="14" fill="#f3ecdc" stroke="#e6dcc7"/>
+  <circle cx="64" cy="68" r="11" fill="#14b8a6"/>
+  <text x="88" y="74" font-family="DM Sans, sans-serif" font-size="15" fill="#2e211c">Return library books</text>
+  <rect x="32" y="112" width="496" height="56" rx="14" fill="#f3ecdc" stroke="#e6dcc7"/>
+  <circle cx="64" cy="140" r="11" fill="none" stroke="#a9713f" stroke-width="2"/>
+  <text x="88" y="146" font-family="DM Sans, sans-serif" font-size="15" fill="#2e211c">Pay electricity bill</text>
+  <rect x="32" y="184" width="496" height="56" rx="14" fill="#f3ecdc" stroke="#e6dcc7"/>
+  <circle cx="64" cy="212" r="11" fill="none" stroke="#a9713f" stroke-width="2"/>
+  <text x="88" y="218" font-family="DM Sans, sans-serif" font-size="15" fill="#2e211c">Schedule playdate for Jake</text>
+  <path d="M360 250 l40 24 -16 6 10 22 -10 5 -10 -22 -14 10 z" fill="#a9713f"/>
+  <text x="280" y="410" text-anchor="middle" font-family="DM Mono, monospace" font-size="12" fill="#b3a48e" letter-spacing="2">TOUCH INTERACTION · REPLACE</text>
+</svg>

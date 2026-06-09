@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="hearth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Hub — the AI-driven family dashboard for your wall</title>
+  <meta name="description" content="An open-source, modular smart-mirror dashboard for the home. Talk to it, customize every panel, and grow it with plugins. Weather, Google Calendar, and Google Tasks ship in the box." />
+  <meta property="og:title" content="Family Hub — the AI-driven family dashboard" />
+  <meta property="og:description" content="A warm, interactive smart-mirror for the whole household. AI-driven, 100% customizable, plugin-friendly." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="images/hero-dashboard.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── Nav ──────────────────────────────────────────────────────────── -->
+  <header class="nav">
+    <div class="wrap nav__inner">
+      <a class="brand" href="#top">
+        <span class="brand__mark">◗</span>
+        Family Hub
+      </a>
+      <nav class="nav__links">
+        <a href="#ai">AI assistant</a>
+        <a href="#customize">Customize</a>
+        <a href="#features">Features</a>
+        <a href="#plugins">Build modules</a>
+        <a class="btn btn--primary nav__cta" href="#get-started">Get started</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+  <section class="hero" id="top">
+    <div class="wrap hero__grid">
+      <div>
+        <p class="eyebrow">Open-source smart-mirror for the home</p>
+        <h1>The family dashboard you can <span class="accent">actually talk to.</span></h1>
+        <p class="hero__lead">
+          Family Hub is a warm, wall-mounted home dashboard that runs on a Raspberry Pi —
+          weather, calendars, to-dos and an AI assistant, all in one hearth-lit place.
+          Every panel is a plug-in module, and the assistant can drive any of them.
+        </p>
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="#get-started">Get started</a>
+          <a class="btn btn--ghost" href="#ai">See the AI in action</a>
+        </div>
+        <p class="hero__note">Runs offline on a Pi · Node for dev, Bun in production · MIT-spirited</p>
+      </div>
+      <div class="hero__media reveal">
+        <img src="images/hero-dashboard.svg" alt="Family Hub dashboard on a wall-mounted display" width="720" height="500" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 1. AI-driven management (egg) ────────────────────────────────── -->
+  <section class="section section--egg" id="ai">
+    <div class="wrap feature__grid">
+      <div class="reveal">
+        <p class="eyebrow">AI-driven management</p>
+        <h2>One assistant that runs the whole wall.</h2>
+        <p class="lead">
+          Ask in plain language — “what’s on today?”, “add milk to the list”, “move soccer to 4pm”
+          — and the assistant does it. It reads a live registry of every panel’s capabilities, so it
+          works with built-in widgets <em>and</em> any custom module you add, with zero extra wiring.
+        </p>
+        <ul class="checks">
+          <li><span class="tick">✓</span> Talk or type to add events, tasks, and reminders</li>
+          <li><span class="tick">✓</span> Every module that registers a capability instantly extends what the AI can do</li>
+          <li><span class="tick">✓</span> Powered by Claude — bring your own API key, your data stays home</li>
+        </ul>
+      </div>
+      <div class="feature__media reveal">
+        <img src="images/ai-assistant.svg" alt="AI assistant conversation controlling dashboard panels" width="560" height="440" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. Customizable dashboards (dark) ────────────────────────────── -->
+  <section class="section section--dark" id="customize">
+    <div class="wrap feature__grid feature__grid--rev">
+      <div class="reveal">
+        <p class="eyebrow">100% customizable</p>
+        <h2>Your home, your layout — more than one view.</h2>
+        <p class="lead">
+          Drag panels where you want them and size them to fit your wall. Build multiple
+          dashboards — a busy morning view, a quiet evening view, a kids’ view — and switch
+          between them. Nothing is hard-coded; the layout is yours.
+        </p>
+        <ul class="checks">
+          <li><span class="tick">✓</span> Multiple dashboard views, switchable on the fly</li>
+          <li><span class="tick">✓</span> Per-panel sizing and placement on a flexible grid</li>
+          <li><span class="tick">✓</span> Settings live on each card — no config files required</li>
+        </ul>
+      </div>
+      <div class="feature__media reveal">
+        <img src="images/custom-views.svg" alt="Multiple customizable dashboard layouts" width="560" height="440" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 3. Shipped features (egg) ────────────────────────────────────── -->
+  <section class="section section--egg" id="features">
+    <div class="wrap">
+      <div class="reveal" style="max-width: 60ch;">
+        <p class="eyebrow">In the box</p>
+        <h2>Useful from the first boot.</h2>
+        <p class="lead">
+          Family Hub ships with the panels a household actually reaches for — already wired to the
+          real services, not just mock data.
+        </p>
+      </div>
+      <div class="cards">
+        <div class="card reveal">
+          <div class="card__media"><img src="images/feature-weather.svg" alt="Weather panel preview" width="320" height="200" /></div>
+          <span class="card__icon">⛅</span>
+          <h3>Weather</h3>
+          <p>Local forecast via Open-Meteo — no API key. Night-aware icons, highs &amp; lows, UV, °C or °F.</p>
+          <span class="pill">Shipped</span>
+        </div>
+        <div class="card reveal">
+          <div class="card__media"><img src="images/feature-calendar.svg" alt="Google Calendar panel preview" width="320" height="200" /></div>
+          <span class="card__icon">📅</span>
+          <h3>Google Calendar</h3>
+          <p>Connect Google accounts and ICS subscriptions. Merged, day-grouped agenda with event creation.</p>
+          <span class="pill">Shipped</span>
+        </div>
+        <div class="card reveal">
+          <div class="card__media"><img src="images/feature-tasks.svg" alt="Google Tasks panel preview" width="320" height="200" /></div>
+          <span class="card__icon">✅</span>
+          <h3>Google Tasks</h3>
+          <p>Shared family to-dos synced with Google Tasks — check things off from the wall or your phone.</p>
+          <span class="pill">Shipped</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. Module plugin development (dark) ──────────────────────────── -->
+  <section class="section section--dark" id="plugins">
+    <div class="wrap feature__grid feature__grid--rev">
+      <div class="reveal">
+        <p class="eyebrow">Build your own</p>
+        <h2>A module is a folder. Scaffold one in seconds.</h2>
+        <p class="lead">
+          Drop a folder under <code>modules/</code> with a manifest and a panel, and the core
+          loads it at boot. Generators kickstart the boilerplate so you write only the
+          interesting part — and any capability you register is automatically AI-assistable.
+        </p>
+        <ul class="checks">
+          <li><span class="tick">✓</span> Generators scaffold manifest, backend, and frontend</li>
+          <li><span class="tick">✓</span> Optionally expose capabilities the assistant can call</li>
+          <li><span class="tick">✓</span> TypeScript end-to-end; talk to the core through one clean context</li>
+        </ul>
+      </div>
+      <div class="feature__media reveal">
+        <pre class="code"><span class="c"># scaffold a new panel</span>
+<span class="k">$</span> pnpm gen:module <span class="s">chores</span>
+
+<span class="c"># manifest.ts — the whole contract</span>
+<span class="k">export default</span> {
+  name: <span class="s">"chores"</span>,
+  title: <span class="s">"Chore Wheel"</span>,
+  hasFrontend: <span class="k">true</span>,
+  hasBackend: <span class="k">true</span>,
+}
+
+<span class="c"># register a capability → the AI can now use it</span>
+ctx.capabilities.register({
+  name: <span class="s">"assign_chore"</span>,
+  description: <span class="s">"Assign a chore to a family member"</span>,
+  handler,
+})</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5. Interactive, not display-only (egg) ───────────────────────── -->
+  <section class="section section--egg" id="interactive">
+    <div class="wrap feature__grid">
+      <div class="reveal">
+        <p class="eyebrow">Hands-on</p>
+        <h2>An interactive hub — not a read-only display.</h2>
+        <p class="lead">
+          Most smart mirrors just show you things. Family Hub talks back. Tap a task to
+          complete it, add an event right on the glass, ask the assistant a question — every
+          change syncs live across the screen over WebSockets.
+        </p>
+        <ul class="checks">
+          <li><span class="tick">✓</span> Touch-friendly: check off tasks and add events on the wall</li>
+          <li><span class="tick">✓</span> Live updates pushed in real time — no refresh</li>
+          <li><span class="tick">✓</span> Optimistic UI so the screen feels instant</li>
+        </ul>
+      </div>
+      <div class="feature__media reveal">
+        <img src="images/interactive.svg" alt="Touch interaction on the dashboard" width="560" height="440" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 6. Opinionated, themeable design (dark) ──────────────────────── -->
+  <section class="section section--dark" id="theming">
+    <div class="wrap feature__grid feature__grid--rev">
+      <div class="reveal">
+        <p class="eyebrow">Designed with taste</p>
+        <h2>Opinionated by default. Yours in a few colors.</h2>
+        <p class="lead">
+          Family Hub looks like a hearth, not a server rack — warm copper on dark brown, serif
+          accents, soft panels. It’s a considered design out of the box, but the whole palette
+          lives in one theme file. Change a handful of colors and the entire hub follows.
+        </p>
+        <div class="swatches" aria-hidden="true">
+          <span class="swatch" style="background:#231915"></span>
+          <span class="swatch" style="background:#2f221b"></span>
+          <span class="swatch" style="background:#c4956a"></span>
+          <span class="swatch" style="background:#14b8a6"></span>
+          <span class="swatch" style="background:#fbf7f0"></span>
+        </div>
+        <ul class="checks">
+          <li><span class="tick">✓</span> Warm “hearth” theme ships dark and light</li>
+          <li><span class="tick">✓</span> Re-theme everything from a single CSS file</li>
+        </ul>
+      </div>
+      <div class="feature__media reveal">
+        <img src="images/theming.svg" alt="Theme variations of the dashboard" width="560" height="440" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ──────────────────────────────────────────────────────────── -->
+  <section class="cta" id="get-started">
+    <div class="wrap">
+      <p class="eyebrow">Get started</p>
+      <h2>Hang a little warmth on the wall.</h2>
+      <p class="lead">
+        Clone the repo, run <code>pnpm dev</code>, and open it on any screen. When you’re ready,
+        point it at a Raspberry Pi and let it run the household.
+      </p>
+      <div class="cta__row">
+        <a class="btn btn--primary" href="#">View on GitHub</a>
+        <a class="btn btn--ghost" href="#features">Explore the features</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ───────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <span>Family Hub — open-source family dashboard.</span>
+      <nav style="display:flex; gap:20px;">
+        <a href="#top">Top</a>
+        <a href="#features">Features</a>
+        <a href="#get-started">Get started</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    // Reveal-on-scroll
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      }
+    }, { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  </script>
+</body>
+</html>

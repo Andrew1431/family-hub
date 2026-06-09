@@ -5,6 +5,8 @@ import { DashboardGrid } from "./components/DashboardGrid";
 import { Header } from "./components/Header";
 import { AssistantOrb } from "./components/AssistantOrb";
 import { ChatModal } from "./components/ChatModal";
+import { SettingsModal } from "./components/SettingsModal";
+import { HubSettings } from "./components/HubSettings";
 
 /** Return to the Home (first) dashboard after this long with no interaction. */
 const INACTIVITY_RESET_MS = 60_000 * 5;
@@ -15,7 +17,10 @@ export default function App() {
   const [config, setConfig] = useState<HubConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeId, setActiveId] = useState<string>("");
+
+  const showAssistant = config?.showAssistant !== false; // default on for older configs
 
   useEffect(() => {
     Promise.all([fetchModules(), fetchLayout(), fetchConfig()])
@@ -47,8 +52,10 @@ export default function App() {
     };
   }, [homeId, activeId]);
 
-  // Spacebar opens the assistant — but never while typing in a field.
+  // Spacebar opens the assistant — but never while typing in a field, and not
+  // when the assistant is disabled.
   useEffect(() => {
+    if (!showAssistant) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "Space" || chatOpen) return;
       const el = e.target as HTMLElement | null;
@@ -59,7 +66,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chatOpen]);
+  }, [chatOpen, showAssistant]);
 
   if (error) {
     return (
@@ -87,7 +94,23 @@ export default function App() {
   const active = layout.dashboards.find((d) => d.id === activeId) ?? layout.dashboards[0];
 
   return (
-    <div className="flex h-full flex-col gap-[clamp(16px,2.5vw,28px)] overflow-hidden p-[clamp(20px,4vw,48px)]">
+    <div className="relative flex h-full flex-col gap-[clamp(16px,2.5vw,28px)] overflow-hidden p-[clamp(20px,4vw,48px)]">
+      {/* Hub settings — dim corner gear, brightens on hover/focus (kept subtle for
+          a wall display). Opens the shell SettingsModal with app-level toggles. */}
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Hub settings"
+        className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-lg
+                   text-base-content/25 transition-colors duration-150
+                   hover:bg-base-content/10 hover:text-base-content/70 focus-visible:text-base-content/70"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+
       <Header dashboards={layout.dashboards} activeId={active?.id ?? ""} onSelect={setActiveId} />
       {active && (
         <DashboardGrid
@@ -96,10 +119,17 @@ export default function App() {
           defaults={{ columns: layout.columns, ...(layout.rows ? { rows: layout.rows } : {}) }}
         />
       )}
-      <footer className="flex justify-center">
-        <AssistantOrb onClick={() => setChatOpen(true)} />
-      </footer>
-      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} />}
+      {showAssistant && (
+        <footer className="flex justify-center">
+          <AssistantOrb onClick={() => setChatOpen(true)} />
+        </footer>
+      )}
+      {showAssistant && chatOpen && <ChatModal onClose={() => setChatOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal title="Hub" onClose={() => setSettingsOpen(false)}>
+          <HubSettings config={config} onChange={setConfig} />
+        </SettingsModal>
+      )}
     </div>
   );
 }

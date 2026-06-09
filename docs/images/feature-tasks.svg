@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200" role="img" aria-label="Tasks panel placeholder">
+  <rect width="320" height="200" fill="#2f221b"/>
+  <text x="28" y="40" font-family="DM Mono, monospace" font-size="11" fill="#a09080" letter-spacing="2">TO-DO</text>
+  <circle cx="36" cy="68" r="8" fill="#14b8a6"/>
+  <text x="56" y="73" font-family="DM Sans, sans-serif" font-size="13" fill="#9d8d7d" text-decoration="line-through">Return library books</text>
+  <circle cx="36" cy="104" r="8" fill="none" stroke="#c4956a" stroke-width="2"/>
+  <text x="56" y="109" font-family="DM Sans, sans-serif" font-size="13" fill="#f0ebe2">Buy groceries: milk, eggs, bread</text>
+  <circle cx="36" cy="140" r="8" fill="none" stroke="#c4956a" stroke-width="2"/>
+  <text x="56" y="145" font-family="DM Sans, sans-serif" font-size="13" fill="#f0ebe2">Pay electricity bill</text>
+  <circle cx="36" cy="176" r="8" fill="none" stroke="#c4956a" stroke-width="2"/>
+  <text x="56" y="181" font-family="DM Sans, sans-serif" font-size="13" fill="#f0ebe2">Call the plumber</text>
+</svg>

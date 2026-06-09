@@ -231,6 +231,19 @@ export default defineBackend((ctx) => {
     return null;
   }
 
+  // Locate many tasks in a single pass (one collectLists scan, not one per id).
+  // collectLists includes completed/hidden tasks, so this finds tasks in any state.
+  async function locateTasks(taskIds: string[]): Promise<Map<string, DefaultList>> {
+    const wanted = new Set(taskIds);
+    const found = new Map<string, DefaultList>();
+    for (const list of await collectLists()) {
+      for (const t of list.tasks) {
+        if (wanted.has(t.id)) found.set(t.id, { accountId: list.accountId, listId: list.id });
+      }
+    }
+    return found;
+  }
+
   async function addTask(input: {
     title: string;
     notes?: string;
@@ -274,7 +287,7 @@ export default defineBackend((ctx) => {
         .map((l) => `${l.title} (id: ${l.id}${def && def.listId === l.id ? ", default" : ""})`),
     );
     if (lists.length === 0) return undefined;
-    return `To-do lists available: ${lists.join("; ")}. When adding to a named list, pass its listName or listId to todo_add_task.`;
+    return `To-do lists available: ${lists.join("; ")}. When adding to a named list, pass its listName or listId on the task passed to todo_add_tasks.`;
   });
 
   ctx.capabilities.register({
@@ -295,40 +308,108 @@ export default defineBackend((ctx) => {
   });
 
   ctx.capabilities.register({
-    name: "todo_add_task",
+    name: "todo_add_tasks",
     description:
-      "Add a task to a to-do list. Use this for groceries, errands, and reminders. " +
-      "If the user names a specific list (e.g. 'add milk to my grocery list'), pass " +
-      "listName with that name — it's matched case-insensitively against the family's " +
-      "lists (call todo_list_tasks first if you're unsure which lists exist). With no " +
-      "list named, it lands in the family's default list. The result's `list` field " +
-      "is the list the task actually landed in — use it to confirm.",
+      "Add one or more tasks to to-do lists in a single call. Use this for groceries, " +
+      "errands, and reminders — pass a single-element array to add just one. Each task " +
+      "can target its own list: if the user names a specific list (e.g. 'add milk to my " +
+      "grocery list'), set that task's listName — it's matched case-insensitively against " +
+      "the family's lists (call todo_list_tasks first if you're unsure which lists exist). " +
+      "A task with no list named lands in the family's default list. Each result's `list` " +
+      "field is the list that task actually landed in — use it to confirm.",
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string", description: "What the task is, e.g. 'Buy milk'." },
-        notes: { type: "string", description: "Optional extra details." },
-        due: { type: "string", description: "Optional due date as YYYY-MM-DD (date only)." },
-        listName: {
-          type: "string",
-          description:
-            "Optional list name to target, e.g. 'Groceries'. Matched case-insensitively " +
-            "against existing list titles; falls back to the default list if no match.",
+        tasks: {
+          type: "array",
+          description: "The tasks to add (one or more).",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "What the task is, e.g. 'Buy milk'." },
+              notes: { type: "string", description: "Optional extra details." },
+              due: { type: "string", description: "Optional due date as YYYY-MM-DD (date only)." },
+              listName: {
+                type: "string",
+                description:
+                  "Optional list name to target, e.g. 'Groceries'. Matched case-insensitively " +
+                  "against existing list titles; falls back to the default list if no match.",
+              },
+              listId: { type: "string", description: "Optional exact task list ID (overrides listName)." },
+            },
+            required: ["title"],
+            additionalProperties: false,
+          },
         },
-        listId: { type: "string", description: "Optional exact task list ID (overrides listName)." },
       },
-      required: ["title"],
+      required: ["tasks"],
       additionalProperties: false,
     },
     handler: async (input: {
-      title: string;
-      notes?: string;
-      due?: string;
-      listId?: string;
-      listName?: string;
+      tasks: Array<{ title: string; notes?: string; due?: string; listId?: string; listName?: string }>;
     }) => {
+      const tasks = Array.isArray(input.tasks) ? input.tasks : [];
+      if (tasks.length === 0) return { ok: false, message: "Provide at least one task." };
+      const results = [];
+      for (const t of tasks) {
+        if (!t?.title?.trim()) {
+          results.push({ ok: false, title: t?.title ?? "", message: "title is required" });
+          continue;
+        }
+        try {
+          results.push({ ...(await addTask(t)), title: t.title });
+        } catch (err) {
+          results.push({ ok: false, title: t.title, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      return { ok: results.every((r) => r.ok), results };
+    },
+  });
+
+  ctx.capabilities.register({
+    name: "todo_complete_tasks",
+    description:
+      "Mark one or more tasks as done (checked off) by their IDs. Pass a single-element " +
+      "array to complete just one. The owning list of each task is found automatically.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "The task IDs to complete (one or more).",
+        },
+      },
+      required: ["taskIds"],
+      additionalProperties: false,
+    },
+    annotations: { requiresConfirmation: true },
+    handler: async (input: { taskIds: string[] }) => {
+      const ids = Array.isArray(input.taskIds) ? input.taskIds.filter(Boolean) : [];
+      if (ids.length === 0) return { ok: false, message: "Provide at least one task ID." };
       try {
-        return await addTask(input);
+        const located = await locateTasks(ids);
+        const tokenByAccount = new Map<string, string>();
+        const results = [];
+        for (const taskId of ids) {
+          const loc = located.get(taskId);
+          if (!loc) {
+            results.push({ taskId, ok: false, message: "Task not found." });
+            continue;
+          }
+          try {
+            let token = tokenByAccount.get(loc.accountId);
+            if (!token) {
+              token = await accessTokenFor(ctx.secrets, loc.accountId);
+              tokenByAccount.set(loc.accountId, token);
+            }
+            await patchTask(token, loc.listId, taskId, { status: "completed" });
+            results.push({ taskId, ok: true });
+          } catch (err) {
+            results.push({ taskId, ok: false, message: err instanceof Error ? err.message : String(err) });
+          }
+        }
+        return { ok: results.every((r) => r.ok), results };
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : String(err) };
       }
@@ -336,27 +417,51 @@ export default defineBackend((ctx) => {
   });
 
   ctx.capabilities.register({
-    name: "todo_complete_task",
-    description: "Mark a task as done (checked off) by its ID.",
+    name: "todo_delete_tasks",
+    description:
+      "Permanently delete one or more tasks by their IDs, in any state (open or completed). " +
+      "Pass a single-element array to delete just one. The owning list of each task is found " +
+      "automatically. This removes tasks entirely — to merely check one off, use " +
+      "todo_complete_tasks instead.",
     inputSchema: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "The task ID to complete." },
-        listId: { type: "string", description: "Optional list ID the task is in (found automatically if omitted)." },
+        taskIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "The task IDs to delete (one or more).",
+        },
       },
-      required: ["taskId"],
+      required: ["taskIds"],
       additionalProperties: false,
     },
     annotations: { requiresConfirmation: true },
-    handler: async (input: { taskId: string; listId?: string }) => {
+    handler: async (input: { taskIds: string[] }) => {
+      const ids = Array.isArray(input.taskIds) ? input.taskIds.filter(Boolean) : [];
+      if (ids.length === 0) return { ok: false, message: "Provide at least one task ID." };
       try {
-        const loc = input.listId ? await locateList(input.listId).then((accountId) =>
-          accountId ? { accountId, listId: input.listId! } : null,
-        ) : await locateTask(input.taskId);
-        if (!loc) return { ok: false, message: "Task not found." };
-        const token = await accessTokenFor(ctx.secrets, loc.accountId);
-        await patchTask(token, loc.listId, input.taskId, { status: "completed" });
-        return { ok: true };
+        const located = await locateTasks(ids);
+        const tokenByAccount = new Map<string, string>();
+        const results = [];
+        for (const taskId of ids) {
+          const loc = located.get(taskId);
+          if (!loc) {
+            results.push({ taskId, ok: false, message: "Task not found." });
+            continue;
+          }
+          try {
+            let token = tokenByAccount.get(loc.accountId);
+            if (!token) {
+              token = await accessTokenFor(ctx.secrets, loc.accountId);
+              tokenByAccount.set(loc.accountId, token);
+            }
+            await deleteTask(token, loc.listId, taskId);
+            results.push({ taskId, ok: true });
+          } catch (err) {
+            results.push({ taskId, ok: false, message: err instanceof Error ? err.message : String(err) });
+          }
+        }
+        return { ok: results.every((r) => r.ok), results };
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : String(err) };
       }

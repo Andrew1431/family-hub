@@ -2,6 +2,7 @@
   "name": "family-hub",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "engines": {
