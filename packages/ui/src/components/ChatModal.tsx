@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -60,6 +61,7 @@ const SUGGESTIONS = [
 ];
 
 export function ChatModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
   const [messages, setMessages] = useState<Msg[]>([GREETING]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,6 +97,9 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
       const data = await res.json();
       const reply = data.reply ?? data.message ?? "Sorry, I couldn't get a response.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      // The assistant changed home state (added a to-do, created an event, …);
+      // refetch every panel so the dashboard reflects it without the 5-min wait.
+      if (data.mutated) void qc.invalidateQueries();
     } catch {
       setMessages((prev) => [
         ...prev,

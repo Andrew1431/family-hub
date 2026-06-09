@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 
@@ -41,9 +41,22 @@ function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-function dayKey(iso: string): string {
-  const d = new Date(iso);
+function localKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dayKey(iso: string): string {
+  return localKey(new Date(iso));
+}
+
+// Compact time for dense month cells: "9a", "2:30p".
+function shortTime(iso: string): string {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ap = h >= 12 ? "p" : "a";
+  h = h % 12 || 12;
+  return m === 0 ? `${h}${ap}` : `${h}:${String(m).padStart(2, "0")}${ap}`;
 }
 
 // Section header for a day group: "Today" / "Tomorrow" / "Wednesday",
@@ -360,19 +373,270 @@ function AddEventModal({
   );
 }
 
-function CalendarPanel(_props: PanelProps) {
+// ── Upcoming (summary) view: the original day-grouped agenda ──────────────────
+
+function UpcomingList({ events }: { events: ResolvedEvent[] }) {
+  const groups = ensureToday(groupByDay(events));
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+      {groups.map((g) => (
+        <div key={g.key}>
+          {g.label === "Today" ? (
+            <div className="mb-2 flex items-center gap-1.5 font-serif text-[clamp(13px,1.4vw,15px)] font-semibold tracking-[0.09em] uppercase text-primary">
+              <span aria-hidden>📅</span>
+              Today
+            </div>
+          ) : (
+            <div className="font-serif text-[clamp(12px,1.3vw,14px)] tracking-[0.09em] uppercase text-base-content/60 mb-2">
+              {g.label}
+              {g.dateLabel && (
+                <span className="text-base-content/40"> · {g.dateLabel}</span>
+              )}
+            </div>
+          )}
+          {g.events.length === 0 ? (
+            <div className="rounded-lg border border-base-content/10 bg-base-content/[0.03] px-3 py-3 font-serif italic text-[clamp(13px,1.4vw,15px)] text-base-content/55">
+              Nothing on the calendar today
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {g.events.map((ev) => (
+                <EventRow key={ev.id} event={ev} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Month view ────────────────────────────────────────────────────────────────
+
+const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const MONTH_MAX_EVENTS = 3; // chips per cell before "+N more"
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+// The 6-week (42-day) grid spanning the anchor's month, starting on the Sunday
+// on/before the 1st. `to` is exclusive — it's also the events fetch window.
+function monthGridRange(anchor: Date): { from: Date; to: Date } {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const from = new Date(first);
+  from.setDate(first.getDate() - first.getDay());
+  const to = new Date(from);
+  to.setDate(from.getDate() + 42);
+  return { from, to };
+}
+
+function MonthHeader({
+  anchor,
+  onPrev,
+  onNext,
+  onToday,
+}: {
+  anchor: Date;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+}) {
+  const label = anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const navBtn =
+    "grid h-6 w-6 place-items-center rounded-lg text-lg leading-none text-base-content/45 hover:bg-base-content/10 hover:text-base-content/80";
+  return (
+    <div className="flex items-center gap-1">
+      <button onClick={onPrev} aria-label="Previous month" className={navBtn}>
+        ‹
+      </button>
+      <span className="font-serif text-[clamp(14px,1.6vw,18px)] font-semibold text-base-content">
+        {label}
+      </span>
+      <button
+        onClick={onToday}
+        aria-label="Back to current month"
+        className="grid h-6 w-6 place-items-center rounded-lg text-base-content/45 hover:bg-base-content/10 hover:text-base-content/80"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+      </button>
+      <button onClick={onNext} aria-label="Next month" className={navBtn}>
+        ›
+      </button>
+    </div>
+  );
+}
+
+function MonthGrid({ events, anchor }: { events: ResolvedEvent[]; anchor: Date }) {
+  const { from } = monthGridRange(anchor);
+  const month = anchor.getMonth();
+  const today = startOfDay(new Date()).getTime();
+  const [openDay, setOpenDay] = useState<Date | null>(null);
+
+  const byDay = new Map<string, ResolvedEvent[]>();
+  for (const ev of events) {
+    const k = dayKey(ev.start);
+    const list = byDay.get(k);
+    if (list) list.push(ev);
+    else byDay.set(k, [ev]);
+  }
+  for (const list of byDay.values()) {
+    list.sort((a, b) =>
+      a.allDay === b.allDay
+        ? new Date(a.start).getTime() - new Date(b.start).getTime()
+        : a.allDay
+          ? -1
+          : 1,
+    );
+  }
+
+  const cells: Date[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(from);
+    d.setDate(from.getDate() + i);
+    cells.push(d);
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1">
+      <div className="grid grid-cols-7">
+        {WEEKDAYS.map((w, i) => (
+          <div
+            key={i}
+            className="text-center font-serif text-[clamp(10px,1vw,12px)] uppercase tracking-[0.08em] text-base-content/40"
+          >
+            {w}
+          </div>
+        ))}
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1">
+        {cells.map((d) => {
+          const inMonth = d.getMonth() === month;
+          const isToday = d.getTime() === today;
+          const dayEvents = byDay.get(localKey(d)) ?? [];
+          const hasEvents = dayEvents.length > 0;
+          return (
+            <button
+              key={d.getTime()}
+              type="button"
+              disabled={!hasEvents}
+              onClick={() => setOpenDay(d)}
+              className={`flex min-h-0 flex-col overflow-hidden rounded-md border px-1 py-0.5 text-left transition-colors ${
+                isToday
+                  ? "border-primary/50 bg-primary/[0.07]"
+                  : "border-base-content/5 bg-base-content/[0.02]"
+              } ${inMonth ? "" : "opacity-35"} ${
+                hasEvents ? "cursor-pointer hover:border-base-content/25" : "cursor-default"
+              }`}
+            >
+              <div
+                className={`mb-0.5 shrink-0 text-right font-sans text-[clamp(10px,1.1vw,13px)] ${
+                  isToday ? "font-bold text-primary" : "text-base-content/60"
+                }`}
+              >
+                {d.getDate()}
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                {dayEvents.slice(0, MONTH_MAX_EVENTS).map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="flex items-center gap-1 rounded-sm px-1 py-px"
+                    style={{ background: `${ev.color}22` }}
+                    title={ev.summary}
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: ev.color }} />
+                    <span className="truncate font-sans text-[clamp(9px,1vw,11px)] leading-tight text-base-content/85">
+                      {!ev.allDay && <span className="text-base-content/50">{shortTime(ev.start)} </span>}
+                      {ev.summary}
+                    </span>
+                  </div>
+                ))}
+                {dayEvents.length > MONTH_MAX_EVENTS && (
+                  <div className="px-1 font-sans text-[clamp(9px,0.9vw,10px)] text-base-content/45">
+                    +{dayEvents.length - MONTH_MAX_EVENTS} more
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {openDay && (
+        <DayModal
+          day={openDay}
+          events={byDay.get(localKey(openDay)) ?? []}
+          onClose={() => setOpenDay(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// All of a single day's events, opened by clicking a populated month cell.
+function DayModal({
+  day,
+  events,
+  onClose,
+}: {
+  day: Date;
+  events: ResolvedEvent[];
+  onClose: () => void;
+}) {
+  const title = day.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  return (
+    <Modal title={title} onClose={onClose}>
+      {events.length === 0 ? (
+        <p className="font-serif italic text-sm text-base-content/55">
+          Nothing on the calendar this day.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {events.map((ev) => (
+            <EventRow key={ev.id} event={ev} />
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function CalendarPanel(props: PanelProps) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const view = props.settings.view === "month" ? "month" : "summary";
+  // Anchor for month navigation: any date within the displayed month.
+  const [anchor, setAnchor] = useState(() => new Date());
+  const shiftMonth = (delta: number) =>
+    setAnchor((a) => new Date(a.getFullYear(), a.getMonth() + delta, 1));
 
+  // Month view fetches its full visible grid; the summary view keeps the
+  // server's default ~3-week window. Both share the ["calendar","events"]
+  // prefix so settings/create invalidations refresh either.
+  const range = view === "month" ? monthGridRange(anchor) : null;
   const eventsQuery = useQuery({
-    queryKey: ["calendar", "events"],
+    queryKey:
+      view === "month"
+        ? ["calendar", "events", "month", anchor.getFullYear(), anchor.getMonth()]
+        : ["calendar", "events"],
     queryFn: async (): Promise<ResolvedEvent[]> => {
-      const r = await fetch("/api/m/calendar-google/events");
+      const qs = range
+        ? `?from=${range.from.toISOString()}&to=${range.to.toISOString()}`
+        : "";
+      const r = await fetch(`/api/m/calendar-google/events${qs}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json() as Promise<ResolvedEvent[]>;
     },
-    // Keep upcoming events warm without hammering Google.
+    // Keep events warm without hammering Google; hold the prior month on the
+    // screen while paging so navigation doesn't flash empty.
     refetchInterval: 5 * 60_000,
+    placeholderData: keepPreviousData,
   });
 
   // Learn whether we can write (any enabled+writable Google calendar). Shared
@@ -394,19 +658,26 @@ function CalendarPanel(_props: PanelProps) {
     : null;
   const cals = statusQuery.data ? writableCalendars(statusQuery.data.accounts) : [];
   const writeTarget = statusQuery.data?.writeTarget ?? null;
-
-  const groups = ensureToday(groupByDay(events));
   const canWrite = cals.length > 0;
 
   return (
     <div className="flex flex-col gap-3.5 h-full overflow-hidden p-1">
-      <div className="flex shrink-0 items-center justify-between">
-        <span className="panel-label">Calendar</span>
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        {view === "month" ? (
+          <MonthHeader
+            anchor={anchor}
+            onPrev={() => shiftMonth(-1)}
+            onNext={() => shiftMonth(1)}
+            onToday={() => setAnchor(new Date())}
+          />
+        ) : (
+          <span className="panel-label">Calendar</span>
+        )}
         {canWrite && (
           <button
             onClick={() => setAdding(true)}
             aria-label="New event"
-            className="grid h-6 w-6 place-items-center rounded-lg text-base-content/45 hover:bg-base-content/10 hover:text-base-content/80"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-base-content/45 hover:bg-base-content/10 hover:text-base-content/80"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M12 5v14M5 12h14" />
@@ -425,38 +696,13 @@ function CalendarPanel(_props: PanelProps) {
         <div className="font-sans text-[12px] text-error/70">{error}</div>
       )}
 
-      {!loading && error === null && (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-          {groups.map((g) => (
-            <div key={g.key}>
-              {g.label === "Today" ? (
-                <div className="mb-2 flex items-center gap-1.5 font-serif text-[clamp(13px,1.4vw,15px)] font-semibold tracking-[0.09em] uppercase text-primary">
-                  <span aria-hidden>📅</span>
-                  Today
-                </div>
-              ) : (
-                <div className="font-serif text-[clamp(12px,1.3vw,14px)] tracking-[0.09em] uppercase text-base-content/60 mb-2">
-                  {g.label}
-                  {g.dateLabel && (
-                    <span className="text-base-content/40"> · {g.dateLabel}</span>
-                  )}
-                </div>
-              )}
-              {g.events.length === 0 ? (
-                <div className="rounded-lg border border-base-content/10 bg-base-content/[0.03] px-3 py-3 font-serif italic text-[clamp(13px,1.4vw,15px)] text-base-content/55">
-                  Nothing on the calendar today
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {g.events.map((ev) => (
-                    <EventRow key={ev.id} event={ev} />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {!loading &&
+        error === null &&
+        (view === "month" ? (
+          <MonthGrid events={events} anchor={anchor} />
+        ) : (
+          <UpcomingList events={events} />
+        ))}
 
       {adding && (
         <AddEventModal

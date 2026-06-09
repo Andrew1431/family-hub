@@ -7,7 +7,7 @@ import { AssistantOrb } from "./components/AssistantOrb";
 import { ChatModal } from "./components/ChatModal";
 
 /** Return to the Home (first) dashboard after this long with no interaction. */
-const INACTIVITY_RESET_MS = 60_000;
+const INACTIVITY_RESET_MS = 60_000 * 5;
 
 export default function App() {
   const [modules, setModules] = useState<ModuleManifest[] | null>(null);

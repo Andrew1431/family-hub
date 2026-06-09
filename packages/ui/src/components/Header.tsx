@@ -14,11 +14,11 @@ export function Header({
 }) {
   if (!show || dashboards.length < 2) return null;
   return (
-    <header className="flex items-center justify-center">
+    <header className="flex items-center justify-start">
       <nav
         role="tablist"
         aria-label="Dashboards"
-        className="flex items-center gap-1 rounded-full bg-base-content/5 p-1"
+        className="flex items-center gap-5"
       >
         {dashboards.map((d) => {
           const active = d.id === activeId;
@@ -31,13 +31,13 @@ export function Header({
               aria-label={d.label ?? d.id}
               title={d.label ?? d.id}
               onClick={() => onSelect(d.id)}
-              className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${
+              className={`grid h-14 w-14 place-items-center transition-all ${
                 active
-                  ? "bg-primary/15 text-primary"
-                  : "text-base-content/45 hover:bg-base-content/10 hover:text-base-content/75"
+                  ? "text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.55)]"
+                  : "text-base-content/40 hover:text-base-content/70"
               }`}
             >
-              <DashboardIcon name={d.icon} />
+              <DashboardIcon name={d.icon} size={34} />
             </button>
           );
         })}

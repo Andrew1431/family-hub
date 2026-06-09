@@ -72,6 +72,12 @@ export default defineBackend((ctx) => {
     const effort = (await ctx.config.get<Effort>("effort")) ?? DEFAULT_EFFORT;
     const client = new Anthropic({ apiKey });
     const tools = ctx.capabilities.toAnthropicTools() as Anthropic.Tool[];
+    // Names of read-only tools, so we can tell the UI whether this chat changed
+    // any home state (and thus whether its panels need to refetch).
+    const readOnlyTools = new Set(
+      ctx.capabilities.list().filter((c) => c.annotations?.readOnly).map((c) => c.name),
+    );
+    let mutated = false;
     const context = await ctx.capabilities.collectContext();
     const system = buildSystem(
       tools.map((t) => ({ name: t.name, description: t.description ?? "" })),
@@ -117,7 +123,7 @@ export default defineBackend((ctx) => {
           .join("")
           .trim();
         ctx.log.info(`chat done: ${turn + 1} turn(s), tokens in=${inTokens} out=${outTokens}`);
-        return { reply: reply || "…" };
+        return { reply: reply || "…", mutated };
       }
 
       // Execute every requested tool against the shared registry; each routes
@@ -131,6 +137,7 @@ export default defineBackend((ctx) => {
             block.name,
             block.input as Record<string, unknown>,
           );
+          if (!readOnlyTools.has(block.name)) mutated = true;
           results.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -149,7 +156,7 @@ export default defineBackend((ctx) => {
       messages.push({ role: "user", content: results });
     }
 
-    return { reply: "Sorry, I got a bit tangled up on that one — try rephrasing?" };
+    return { reply: "Sorry, I got a bit tangled up on that one — try rephrasing?", mutated };
   });
 
   ctx.log.info("assistant ready");
