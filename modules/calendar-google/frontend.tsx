@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 
@@ -360,40 +361,39 @@ function AddEventModal({
 }
 
 function CalendarPanel(_props: PanelProps) {
-  const [events, setEvents] = useState<ResolvedEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [cals, setCals] = useState<WritableCalendar[]>([]);
-  const [writeTarget, setWriteTarget] = useState<WriteTarget | null>(null);
+  const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
 
-  function loadEvents() {
-    fetch("/api/m/calendar-google/events")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<ResolvedEvent[]>;
-      })
-      .then((data) => {
-        setEvents(data);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to load");
-        setLoading(false);
-      });
-  }
+  const eventsQuery = useQuery({
+    queryKey: ["calendar", "events"],
+    queryFn: async (): Promise<ResolvedEvent[]> => {
+      const r = await fetch("/api/m/calendar-google/events");
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<ResolvedEvent[]>;
+    },
+    // Keep upcoming events warm without hammering Google.
+    refetchInterval: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    loadEvents();
-    // Learn whether we can write (any enabled+writable Google calendar).
-    fetch("/api/m/calendar-google/oauth/status")
-      .then((r) => r.json() as Promise<OAuthStatus>)
-      .then((s) => {
-        setCals(writableCalendars(s.accounts));
-        setWriteTarget(s.writeTarget);
-      })
-      .catch(() => {});
-  }, []);
+  // Learn whether we can write (any enabled+writable Google calendar). Shared
+  // key with the settings form so connecting an account refreshes both.
+  const statusQuery = useQuery({
+    queryKey: ["calendar", "oauth-status"],
+    queryFn: async (): Promise<OAuthStatus> => {
+      const r = await fetch("/api/m/calendar-google/oauth/status");
+      return r.json() as Promise<OAuthStatus>;
+    },
+  });
+
+  const events = eventsQuery.data ?? [];
+  const loading = eventsQuery.isLoading;
+  const error = eventsQuery.isError
+    ? eventsQuery.error instanceof Error
+      ? eventsQuery.error.message
+      : "Failed to load"
+    : null;
+  const cals = statusQuery.data ? writableCalendars(statusQuery.data.accounts) : [];
+  const writeTarget = statusQuery.data?.writeTarget ?? null;
 
   const groups = ensureToday(groupByDay(events));
   const canWrite = cals.length > 0;
@@ -463,7 +463,7 @@ function CalendarPanel(_props: PanelProps) {
           cals={cals}
           writeTarget={writeTarget}
           onClose={() => setAdding(false)}
-          onCreated={loadEvents}
+          onCreated={() => void qc.invalidateQueries({ queryKey: ["calendar", "events"] })}
         />
       )}
     </div>
@@ -505,6 +505,7 @@ function newId(): string {
 }
 
 function CalendarSettings({ onClose }: SettingsProps) {
+  const qc = useQueryClient();
   const [subs, setSubs] = useState<Subscription[] | null>(null);
   const [status, setStatus] = useState<Record<string, SourceStatus>>({});
   const [saving, setSaving] = useState(false);
@@ -579,6 +580,8 @@ function CalendarSettings({ onClose }: SettingsProps) {
       body: JSON.stringify({ subscriptions: subs }),
     });
     setSaving(false);
+    // Subscriptions changed → the panel's events feed is now stale.
+    void qc.invalidateQueries({ queryKey: ["calendar", "events"] });
     onClose();
   }
 
@@ -719,6 +722,7 @@ function CalendarSettings({ onClose }: SettingsProps) {
 // ── Settings: Google accounts (OAuth) ─────────────────────────────────────────
 
 function GoogleSettings() {
+  const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -726,11 +730,18 @@ function GoogleSettings() {
   const [savingCals, setSavingCals] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Any account/calendar change ripples to the panel's status + events.
+  function refreshPanel() {
+    void qc.invalidateQueries({ queryKey: ["calendar", "oauth-status"] });
+    void qc.invalidateQueries({ queryKey: ["calendar", "events"] });
+  }
+
   function load() {
     fetch("/api/m/calendar-google/oauth/status")
       .then((r) => r.json() as Promise<OAuthStatus>)
       .then(setStatus)
       .catch(() => {});
+    refreshPanel();
   }
 
   useEffect(load, []);

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 
@@ -151,113 +152,168 @@ function ListTasks({
 
 // ── Panel ──────────────────────────────────────────────────────────────────
 
-function TodoPanel(_props: PanelProps) {
-  const [lists, setLists] = useState<List[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>("stacked");
-  const [activeId, setActiveId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const TASKS_KEY = ["todo", "tasks"] as const;
 
+function TodoPanel(_props: PanelProps) {
+  const qc = useQueryClient();
+
+  const tasksQuery = useQuery({
+    queryKey: TASKS_KEY,
+    queryFn: async (): Promise<TasksResponse> => {
+      const res = await fetch(`${API}/tasks`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json() as Promise<TasksResponse>;
+    },
+  });
+
+  const lists = tasksQuery.data?.lists ?? [];
+  const viewMode = tasksQuery.data?.viewMode ?? "stacked";
+  const loading = tasksQuery.isLoading;
+  const refreshing = tasksQuery.isFetching;
+  const error = tasksQuery.isError
+    ? tasksQuery.error instanceof Error
+      ? tasksQuery.error.message
+      : "Failed to load tasks"
+    : null;
+
+  const [activeId, setActiveId] = useState<string>("");
   const [newTitle, setNewTitle] = useState("");
   const [showDue, setShowDue] = useState(false);
   const [due, setDue] = useState(todayStr());
-  const [refreshing, setRefreshing] = useState(false);
+  const [stackedAddId, setStackedAddId] = useState<string>("");
 
-  async function load() {
-    try {
-      const res = await fetch(`${API}/tasks`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as TasksResponse;
-      setLists(data.lists);
-      setViewMode(data.viewMode);
-      setActiveId((prev) =>
-        prev && data.lists.some((l) => l.id === prev) ? prev : (data.lists[0]?.id ?? ""),
-      );
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load tasks");
-    } finally {
-      setLoading(false);
-    }
+  // Keep the selected tab valid as lists arrive/change.
+  useEffect(() => {
+    setActiveId((prev) =>
+      prev && lists.some((l) => l.id === prev) ? prev : (lists[0]?.id ?? ""),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksQuery.data]);
+
+  // Mutate the cached tasks in place (used by every optimistic mutation).
+  function patchCache(fn: (prev: TasksResponse) => TasksResponse) {
+    qc.setQueryData<TasksResponse>(TASKS_KEY, (prev) => (prev ? fn(prev) : prev));
   }
-
-  useEffect(() => { void load(); }, []);
-
-  async function refresh() {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
+  // Snapshot for rollback + pause refetches while a mutation is in flight.
+  async function beginOptimistic(): Promise<{ prev: TasksResponse | undefined }> {
+    await qc.cancelQueries({ queryKey: TASKS_KEY });
+    return { prev: qc.getQueryData<TasksResponse>(TASKS_KEY) };
+  }
+  function rollback(ctx: { prev: TasksResponse | undefined } | undefined) {
+    if (ctx?.prev) qc.setQueryData(TASKS_KEY, ctx.prev);
+  }
+  function settle() {
+    void qc.invalidateQueries({ queryKey: TASKS_KEY });
   }
 
   // In tabs mode the active tab is the add target; in stacked mode, a dropdown.
-  const [stackedAddId, setStackedAddId] = useState<string>("");
   const addListId =
     viewMode === "tabs"
       ? activeId
       : (stackedAddId && lists.some((l) => l.id === stackedAddId) ? stackedAddId : (lists[0]?.id ?? ""));
 
-  async function add() {
+  const addMutation = useMutation({
+    mutationFn: (vars: { title: string; listId: string; due?: string }) =>
+      fetch(`${API}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vars),
+      }),
+    onMutate: async (vars) => {
+      const ctx = await beginOptimistic();
+      // Insert a placeholder row immediately; the invalidate on settle swaps in
+      // the real task (with its server id).
+      const temp: Task = {
+        id: `temp-${Date.now()}`,
+        title: vars.title,
+        status: "needsAction",
+        ...(vars.due ? { due: vars.due } : {}),
+      };
+      patchCache((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) =>
+          l.id === vars.listId ? { ...l, tasks: [...l.tasks, temp] } : l,
+        ),
+      }));
+      return ctx;
+    },
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: settle,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: (vars: { listId: string; task: Task; completed: boolean }) =>
+      fetch(`${API}/tasks/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listId: vars.listId, taskId: vars.task.id, completed: vars.completed }),
+      }),
+    onMutate: async (vars) => {
+      const ctx = await beginOptimistic();
+      const next: Task["status"] = vars.completed ? "completed" : "needsAction";
+      patchCache((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) =>
+          l.id === vars.listId
+            ? { ...l, tasks: l.tasks.map((t) => (t.id === vars.task.id ? { ...t, status: next } : t)) }
+            : l,
+        ),
+      }));
+      return ctx;
+    },
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: settle,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (vars: { listId: string; taskId: string }) =>
+      fetch(`${API}/tasks/${encodeURIComponent(vars.listId)}/${encodeURIComponent(vars.taskId)}`, {
+        method: "DELETE",
+      }),
+    onMutate: async (vars) => {
+      const ctx = await beginOptimistic();
+      patchCache((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) =>
+          l.id === vars.listId ? { ...l, tasks: l.tasks.filter((t) => t.id !== vars.taskId) } : l,
+        ),
+      }));
+      return ctx;
+    },
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: settle,
+  });
+
+  const viewMutation = useMutation({
+    mutationFn: (mode: ViewMode) =>
+      fetch(`${API}/accounts`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewMode: mode }),
+      }),
+    onMutate: async (mode) => {
+      const ctx = await beginOptimistic();
+      patchCache((prev) => ({ ...prev, viewMode: mode }));
+      return ctx;
+    },
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: settle,
+  });
+
+  function add() {
     const title = newTitle.trim();
     if (!title || !addListId) return;
     setNewTitle("");
-    const body: Record<string, unknown> = { title, listId: addListId };
-    if (showDue && due) body.due = due;
-    await fetch(`${API}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    await load();
+    addMutation.mutate({ title, listId: addListId, ...(showDue && due ? { due } : {}) });
   }
-
-  async function toggle(listId: string, task: Task) {
-    const snapshot = lists;
-    const next = task.status === "completed" ? "needsAction" : "completed";
-    // Optimistic: flip status now so the row moves piles instantly.
-    setLists((prev) =>
-      prev.map((l) =>
-        l.id === listId
-          ? { ...l, tasks: l.tasks.map((t) => (t.id === task.id ? { ...t, status: next } : t)) }
-          : l,
-      ),
-    );
-    try {
-      const res = await fetch(`${API}/tasks/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ listId, taskId: task.id, completed: next === "completed" }),
-      });
-      const j = (await res.json()) as { ok?: boolean };
-      if (!res.ok || j.ok === false) throw new Error("toggle failed");
-    } catch {
-      setLists(snapshot); // restore on failure
-    }
+  function toggle(listId: string, task: Task) {
+    toggleMutation.mutate({ listId, task, completed: task.status !== "completed" });
   }
-
-  async function del(listId: string, taskId: string) {
-    const snapshot = lists;
-    // Optimistic: drop the row now, reconcile only if the request fails.
-    setLists((prev) =>
-      prev.map((l) => (l.id === listId ? { ...l, tasks: l.tasks.filter((t) => t.id !== taskId) } : l)),
-    );
-    try {
-      const res = await fetch(`${API}/tasks/${encodeURIComponent(listId)}/${encodeURIComponent(taskId)}`, {
-        method: "DELETE",
-      });
-      const j = (await res.json()) as { ok?: boolean };
-      if (!res.ok || j.ok === false) throw new Error("delete failed");
-    } catch {
-      setLists(snapshot); // restore on failure
-    }
+  function del(listId: string, taskId: string) {
+    deleteMutation.mutate({ listId, taskId });
   }
-
-  async function switchView(mode: ViewMode) {
-    setViewMode(mode);
-    await fetch(`${API}/accounts`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ viewMode: mode }),
-    });
+  function switchView(mode: ViewMode) {
+    viewMutation.mutate(mode);
   }
 
   const remaining = lists.reduce(
@@ -273,7 +329,7 @@ function TodoPanel(_props: PanelProps) {
         <div className="flex items-center gap-1.5">
           <span className="panel-label">To-Do</span>
           <button
-            onClick={() => void refresh()}
+            onClick={() => void tasksQuery.refetch()}
             disabled={refreshing}
             aria-label="Refresh"
             className="grid h-5 w-5 place-items-center rounded text-base-content/40 transition-colors hover:text-base-content/70"
@@ -462,6 +518,7 @@ interface OAuthStatus {
 }
 
 function TodoSettings({ onClose }: SettingsProps) {
+  const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -476,6 +533,8 @@ function TodoSettings({ onClose }: SettingsProps) {
       .then((r) => r.json() as Promise<OAuthStatus>)
       .then(setStatus)
       .catch(() => {});
+    // Lists/accounts/view may have changed → refresh the panel's tasks.
+    void qc.invalidateQueries({ queryKey: ["todo", "tasks"] });
   }
 
   useEffect(load, []);

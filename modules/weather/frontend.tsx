@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
 import { manifest } from "./manifest";
 import type { CurrentWeather } from "./backend";
@@ -9,21 +10,21 @@ interface WeatherConfig {
   units: "celsius" | "fahrenheit";
 }
 
+async function fetchCurrent(): Promise<CurrentWeather> {
+  const r = await fetch("/api/m/weather/current");
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json() as Promise<CurrentWeather>;
+}
+
 function WeatherPanel(_props: PanelProps) {
-  const [data, setData] = useState<CurrentWeather | null>(null);
-  const [error, setError] = useState(false);
+  const { data, isError } = useQuery({
+    queryKey: ["weather", "current"],
+    queryFn: fetchCurrent,
+    // Weather changes slowly; refetch in the background every 10 min.
+    refetchInterval: 10 * 60_000,
+  });
 
-  useEffect(() => {
-    fetch("/api/m/weather/current")
-      .then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<CurrentWeather>;
-      })
-      .then(setData)
-      .catch(() => setError(true));
-  }, []);
-
-  if (error) {
+  if (isError) {
     return (
       <div className="flex h-full items-center justify-center">
         <span className="panel-label text-error">Unable to load weather</span>
@@ -96,6 +97,7 @@ function WeatherPanel(_props: PanelProps) {
 }
 
 function WeatherSettings({ onClose }: SettingsProps) {
+  const qc = useQueryClient();
   const [cfg, setCfg] = useState<WeatherConfig | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -115,6 +117,8 @@ function WeatherSettings({ onClose }: SettingsProps) {
       body: JSON.stringify({ lat: Number(cfg.lat), lon: Number(cfg.lon), units: cfg.units }),
     });
     setSaving(false);
+    // New location/units → let the panel refetch fresh weather.
+    void qc.invalidateQueries({ queryKey: ["weather", "current"] });
     onClose();
   }
 

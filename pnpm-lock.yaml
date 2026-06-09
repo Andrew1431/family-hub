@@ -28,7 +28,7 @@ importers:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: latest
-        version: 0.102.0
+        version: 0.103.0
       '@hub/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -38,6 +38,9 @@ importers:
       '@hub/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@tanstack/react-query':
+        specifier: '>=5'
+        version: 5.101.0(react@19.2.7)
       node-ical:
         specifier: ^0.20.1
         version: 0.20.1
@@ -59,6 +62,9 @@ importers:
       '@hub/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@tanstack/react-query':
+        specifier: '>=5'
+        version: 5.101.0(react@19.2.7)
       react:
         specifier: '>=18'
         version: 19.2.7
@@ -68,6 +74,9 @@ importers:
       '@hub/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@tanstack/react-query':
+        specifier: '>=5'
+        version: 5.101.0(react@19.2.7)
       react:
         specifier: '>=18'
         version: 19.2.7
@@ -120,6 +129,9 @@ importers:
       '@hub/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@tanstack/react-query':
+        specifier: ^5.101.0
+        version: 5.101.0(react@19.2.7)
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -160,8 +172,8 @@ importers:
 
 packages:
 
-  '@anthropic-ai/sdk@0.102.0':
-    resolution: {integrity: sha512-cThh3KcPW3lzkFyTz1cjyhJvOVw45NkLMoowO2ZJ/76CBz44ADUon+NsjEc/PypAkARs72Xu8qxTnx6PAOTQUQ==}
+  '@anthropic-ai/sdk@0.103.0':
+    resolution: {integrity: sha512-1uG7RNgoHTUxzOXqSCODKt0UTVlxWiHk/2Tt2/uQJiPW7XzBeKVuJyd3Aw6T3LPyvZV/jDTnPLX7SaM70WLLjA==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -854,6 +866,14 @@ packages:
     resolution: {integrity: sha512-t6J3OrB5Fc0ExuhohouH0fWUGMYL6PTLhW+E7zIk/pdbnJARZDCwjBznFnkh5ynRnIRSI4YjtTH0t6USjJISrw==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
+
+  '@tanstack/query-core@5.101.0':
+    resolution: {integrity: sha512-cQetA74EB+seWySv1TTKr828TnP0u39m6LykwDXIo84SNortpDkp30TMEjkqtYCNP9c40uT/iwl6MLiufEt0Ow==}
+
+  '@tanstack/react-query@5.101.0':
+    resolution: {integrity: sha512-rLlJXSpkqfizLWgkR5+eLeIk0MvTx/meEIR7LRjxic+qxiQP8zVjq7BqQkiCMNLQBlLfuOLqqr6KO5GtrDlmSg==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -1994,7 +2014,7 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@0.102.0':
+  '@anthropic-ai/sdk@0.103.0':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
@@ -2497,6 +2517,13 @@ snapshots:
       '@tailwindcss/oxide': 4.3.0
       tailwindcss: 4.3.0
       vite: 6.4.3(@types/node@24.13.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
+
+  '@tanstack/query-core@5.101.0': {}
+
+  '@tanstack/react-query@5.101.0(react@19.2.7)':
+    dependencies:
+      '@tanstack/query-core': 5.101.0
+      react: 19.2.7
 
   '@types/babel__core@7.20.5':
     dependencies:
