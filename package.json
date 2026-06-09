@@ -1,8 +1,28 @@
 {
   "name": "family-hub",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
+  "description": "An open-source, modular smart-mirror / family dashboard for a wall-mounted display (Raspberry Pi friendly).",
   "license": "MIT",
+  "author": "Andrew Hartwig",
+  "homepage": "https://github.com/Andrew1431/family-hub#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andrew1431/family-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Andrew1431/family-hub/issues"
+  },
+  "keywords": [
+    "smart-mirror",
+    "magic-mirror",
+    "dashboard",
+    "family",
+    "raspberry-pi",
+    "fastify",
+    "react",
+    "self-hosted"
+  ],
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "engines": {
