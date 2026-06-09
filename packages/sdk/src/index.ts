@@ -18,7 +18,13 @@ export type {
   RouteRegistrar,
 } from "./context.js";
 export type { ModuleManifest } from "./manifest.js";
-export type { GridSize, GridPlacement, LayoutConfig } from "./layout.js";
+export type {
+  GridSize,
+  GridPlacement,
+  WidgetInstance,
+  DashboardConfig,
+  LayoutConfig,
+} from "./layout.js";
 export type { ModuleBackend } from "./backend.js";
 export { defineBackend } from "./backend.js";
 export type { RawResponse } from "./http.js";

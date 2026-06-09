@@ -1,12 +1,26 @@
 {
-  "$comment": "Dashboard layout. Copied to layout.local.json (gitignored) on first build; edit that to rearrange panels. Grid is `columns` wide and (optionally) `rows` tall — when `rows` is set, rows are equal-height and fill the screen; omit it to let rows grow to content. Each panel sets col/row start (1-based) and w/h span. Omit col/row to auto-flow. Panels with no entry use their module's manifest defaultSize.",
+  "$comment": "Dashboards. Copied to layout.local.json (gitignored) on first build; edit that to rearrange. The grid is `columns` wide and (optionally) `rows` tall (equal-height rows that fill the screen; omit to grow with content). `dashboards` is an icon-tabbed list — the FIRST is Home (shown on load, auto-returned to after inactivity). Each widget is an instance: a unique `id` (scopes its visual `settings`), the `module` to render, col/row start (1-based) + w/h span (omit col/row to auto-flow). A module may appear on several dashboards with different settings. A dashboard may override `columns`/`rows`.",
   "columns": 12,
   "rows": 6,
-  "panels": {
-    "clock": { "col": 1, "row": 1, "w": 8, "h": 2 },
-    "weather": { "col": 9, "row": 1, "w": 4, "h": 2 },
-    "calendar": { "col": 1, "row": 3, "w": 6, "h": 4 },
-    "todo": { "col": 7, "row": 3, "w": 6, "h": 4 }
-  },
-  "order": ["clock", "weather", "calendar", "todo"]
+  "dashboards": [
+    {
+      "id": "home",
+      "icon": "home",
+      "label": "Home",
+      "widgets": [
+        { "id": "clock-main", "module": "clock", "col": 1, "row": 1, "w": 8, "h": 2 },
+        { "id": "weather-main", "module": "weather", "col": 9, "row": 1, "w": 4, "h": 2 },
+        { "id": "calendar-main", "module": "calendar-google", "col": 1, "row": 3, "w": 6, "h": 4, "settings": { "view": "summary" } },
+        { "id": "todo-main", "module": "todo-google", "col": 7, "row": 3, "w": 6, "h": 4 }
+      ]
+    },
+    {
+      "id": "calendar",
+      "icon": "calendar",
+      "label": "Calendar",
+      "widgets": [
+        { "id": "calendar-full", "module": "calendar-google", "col": 1, "row": 1, "w": 12, "h": 6, "settings": { "view": "month" } }
+      ]
+    }
+  ]
 }

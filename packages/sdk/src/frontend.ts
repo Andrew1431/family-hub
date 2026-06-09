@@ -5,6 +5,10 @@ import type { ModuleManifest } from "./manifest.js";
 export interface PanelProps {
   /** The owning module's name; use it to scope API calls + bus topics. */
   moduleName: string;
+  /** This widget instance's unique id (from the layout). */
+  instanceId: string;
+  /** Instance-scoped visual settings declared in the layout (may be empty). */
+  settings: Record<string, unknown>;
 }
 
 /**
@@ -14,6 +18,10 @@ export interface PanelProps {
  */
 export interface SettingsProps {
   moduleName: string;
+  /** The widget instance whose settings are being edited. */
+  instanceId: string;
+  /** This instance's current visual settings (from the layout). */
+  settings: Record<string, unknown>;
   onClose: () => void;
 }
 

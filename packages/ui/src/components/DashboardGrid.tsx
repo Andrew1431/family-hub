@@ -1,39 +1,30 @@
 import { useState } from "react";
-import type { ModuleManifest, LayoutConfig, GridPlacement } from "@hub/sdk";
+import type { ModuleManifest, DashboardConfig, WidgetInstance } from "@hub/sdk";
 import { moduleFrontends } from "../modules.generated";
 import { SettingsModal } from "./SettingsModal";
-
-function placementFor(m: ModuleManifest, layout: LayoutConfig): GridPlacement {
-  const explicit = layout.panels[m.name];
-  if (explicit) return explicit;
-  const size = m.defaultSize ?? { w: 4, h: 2 };
-  return { w: size.w, h: size.h };
-}
-
-function orderModules(modules: ModuleManifest[], layout: LayoutConfig): ModuleManifest[] {
-  const order = layout.order ?? [];
-  return [...modules].sort((a, b) => {
-    const ia = order.indexOf(a.name);
-    const ib = order.indexOf(b.name);
-    return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
-  });
-}
 
 function span(start: number | undefined, length: number): string {
   return start ? `${start} / span ${length}` : `span ${length}`;
 }
 
 export function DashboardGrid({
+  dashboard,
   modules,
-  layout,
+  defaults,
 }: {
-  modules: ModuleManifest[];
-  layout: LayoutConfig;
+  dashboard: DashboardConfig;
+  /** Module name → manifest, for surface/title lookup. */
+  modules: Record<string, ModuleManifest>;
+  /** Top-level grid defaults a dashboard may override. */
+  defaults: { columns: number; rows?: number };
 }) {
-  const cols = layout.columns ?? 12;
-  const [settingsFor, setSettingsFor] = useState<ModuleManifest | null>(null);
+  const [settingsFor, setSettingsFor] = useState<WidgetInstance | null>(null);
 
-  const SettingsComp = settingsFor ? moduleFrontends[settingsFor.name]?.Settings : undefined;
+  const cols = dashboard.columns ?? defaults.columns;
+  const rows = dashboard.rows ?? defaults.rows;
+
+  const settingsModule = settingsFor ? modules[settingsFor.module] : undefined;
+  const SettingsComp = settingsFor ? moduleFrontends[settingsFor.module]?.Settings : undefined;
 
   return (
     <div
@@ -42,33 +33,34 @@ export function DashboardGrid({
         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
         // Fixed row count → proportional rows that fill the display.
         // Otherwise rows grow to fit content.
-        ...(layout.rows
-          ? { gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))` }
+        ...(rows
+          ? { gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }
           : { gridAutoRows: "minmax(90px, auto)" }),
         gap: "clamp(12px, 2vw, 24px)",
       }}
     >
-      {orderModules(modules, layout).map((m) => {
-        const p = placementFor(m, layout);
-        const entry = moduleFrontends[m.name];
-        const bare = m.surface === "bare";
+      {dashboard.widgets.map((w) => {
+        const manifest = modules[w.module];
+        const entry = moduleFrontends[w.module];
+        const bare = manifest?.surface === "bare";
         const hasSettings = Boolean(entry?.Settings);
+        const settings = w.settings ?? {};
         return (
           <section
-            key={m.name}
+            key={w.id}
             className={
               (bare ? "" : "panel p-[clamp(14px,1.6vw,22px)] ") +
               "group relative flex flex-col min-h-0 overflow-hidden"
             }
-            style={{ gridColumn: span(p.col, p.w), gridRow: span(p.row, p.h) }}
+            style={{ gridColumn: span(w.col, w.w), gridRow: span(w.row, w.h) }}
           >
             {/* Settings cog — only for modules that define Settings, and only
                 visible on hover / keyboard focus within the card. */}
             {hasSettings && (
               <button
                 type="button"
-                onClick={() => setSettingsFor(m)}
-                aria-label={`${m.title} settings`}
+                onClick={() => setSettingsFor(w)}
+                aria-label={`${manifest?.title ?? w.module} settings`}
                 className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-lg
                            text-base-content/45 opacity-0 transition-opacity duration-150
                            hover:bg-base-content/10 hover:text-base-content/80
@@ -82,17 +74,22 @@ export function DashboardGrid({
             )}
 
             {entry ? (
-              <entry.Panel moduleName={m.name} />
+              <entry.Panel moduleName={w.module} instanceId={w.id} settings={settings} />
             ) : (
-              <div className="panel-label">{m.title} — no frontend loaded</div>
+              <div className="panel-label">{manifest?.title ?? w.module} — no frontend loaded</div>
             )}
           </section>
         );
       })}
 
       {settingsFor && SettingsComp && (
-        <SettingsModal title={settingsFor.title} onClose={() => setSettingsFor(null)}>
-          <SettingsComp moduleName={settingsFor.name} onClose={() => setSettingsFor(null)} />
+        <SettingsModal title={settingsModule?.title ?? settingsFor.module} onClose={() => setSettingsFor(null)}>
+          <SettingsComp
+            moduleName={settingsFor.module}
+            instanceId={settingsFor.id}
+            settings={settingsFor.settings ?? {}}
+            onClose={() => setSettingsFor(null)}
+          />
         </SettingsModal>
       )}
     </div>
