@@ -57,7 +57,7 @@ export function DashboardGrid({
           <section
             key={m.name}
             className={
-              (bare ? "" : "panel p-5 ") +
+              (bare ? "" : "panel p-[clamp(14px,1.6vw,22px)] ") +
               "group relative flex flex-col min-h-0 overflow-hidden"
             }
             style={{ gridColumn: span(p.col, p.w), gridRow: span(p.row, p.h) }}

@@ -26,7 +26,7 @@ export function SettingsModal({
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80"
         aria-hidden
       />
       <div

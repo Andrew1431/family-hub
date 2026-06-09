@@ -108,7 +108,7 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[1000] flex items-end justify-center pb-[100px]">
       <div
         onClick={onClose}
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80"
         aria-hidden
       />
       <div

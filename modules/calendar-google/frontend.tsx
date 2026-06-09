@@ -82,27 +82,37 @@ function groupByDay(events: ResolvedEvent[]): DayGroup[] {
   return groups;
 }
 
+// Today is always shown as the first section, even with no events, so the panel
+// never looks broken/empty — an explicit "Nothing on the calendar today" reads
+// as intentional. If today already has events its group is left in place.
+function ensureToday(groups: DayGroup[]): DayGroup[] {
+  const t = new Date();
+  const key = `${t.getFullYear()}-${t.getMonth()}-${t.getDate()}`;
+  if (groups.some((g) => g.key === key)) return groups;
+  return [{ key, label: "Today", dateLabel: "", events: [] }, ...groups];
+}
+
 function EventRow({ event }: { event: ResolvedEvent }) {
   return (
     <div
-      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5"
       style={{
-        background: "rgba(255,255,255,0.04)",
+        background: "rgba(255,255,255,0.05)",
         borderLeft: `3px solid ${event.color}`,
       }}
     >
       <div className="flex-1 min-w-0">
-        <div className="font-sans font-medium text-[13px] text-base-content truncate">
+        <div className="font-sans font-medium text-[clamp(14px,1.5vw,17px)] text-base-content truncate">
           {event.summary}
         </div>
-        <div className="font-serif italic text-[11px] text-base-content/60 mt-0.5">
+        <div className="font-serif italic text-[clamp(12px,1.3vw,14px)] text-base-content/75 mt-0.5">
           {event.allDay
             ? "All day"
             : `${formatTime(event.start)} · ${formatDuration(event.start, event.end)}`}
         </div>
       </div>
       <span
-        className="shrink-0 text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded-full"
+        className="shrink-0 text-[11px] font-sans font-semibold px-2 py-0.5 rounded-full"
         style={{
           color: event.color,
           background: `${event.color}22`,
@@ -178,7 +188,7 @@ function Modal({
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <div onClick={onClose} className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-hidden />
+      <div onClick={onClose} className="absolute inset-0 bg-black/80" aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
@@ -385,7 +395,7 @@ function CalendarPanel(_props: PanelProps) {
       .catch(() => {});
   }, []);
 
-  const groups = groupByDay(events);
+  const groups = ensureToday(groupByDay(events));
   const canWrite = cals.length > 0;
 
   return (
@@ -406,7 +416,7 @@ function CalendarPanel(_props: PanelProps) {
       </div>
 
       {loading && (
-        <div className="font-serif italic text-base-content/40 text-[13px]">
+        <div className="font-serif italic text-base-content/60 text-[13px]">
           Loading…
         </div>
       )}
@@ -416,29 +426,36 @@ function CalendarPanel(_props: PanelProps) {
       )}
 
       {!loading && error === null && (
-        groups.length === 0 ? (
-          <div className="font-serif italic text-[12px] text-base-content/30">
-            Nothing scheduled
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-            {groups.map((g) => (
-              <div key={g.key}>
-                <div className="font-serif text-[11px] tracking-[0.09em] uppercase text-base-content/40 mb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+          {groups.map((g) => (
+            <div key={g.key}>
+              {g.label === "Today" ? (
+                <div className="mb-2 flex items-center gap-1.5 font-serif text-[clamp(13px,1.4vw,15px)] font-semibold tracking-[0.09em] uppercase text-primary">
+                  <span aria-hidden>📅</span>
+                  Today
+                </div>
+              ) : (
+                <div className="font-serif text-[clamp(12px,1.3vw,14px)] tracking-[0.09em] uppercase text-base-content/60 mb-2">
                   {g.label}
                   {g.dateLabel && (
-                    <span className="text-base-content/25"> · {g.dateLabel}</span>
+                    <span className="text-base-content/40"> · {g.dateLabel}</span>
                   )}
                 </div>
+              )}
+              {g.events.length === 0 ? (
+                <div className="rounded-lg border border-base-content/10 bg-base-content/[0.03] px-3 py-3 font-serif italic text-[clamp(13px,1.4vw,15px)] text-base-content/55">
+                  Nothing on the calendar today
+                </div>
+              ) : (
                 <div className="flex flex-col gap-2">
                   {g.events.map((ev) => (
                     <EventRow key={ev.id} event={ev} />
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        )
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {adding && (
@@ -578,7 +595,7 @@ function CalendarSettings({ onClose }: SettingsProps) {
       <div>
         <div className="panel-label mb-2">Calendar subscriptions</div>
         {subs.length === 0 ? (
-          <p className="font-serif italic text-xs text-base-content/45">
+          <p className="font-serif italic text-xs text-base-content/65">
             No calendars yet. Paste an iCalendar (.ics) link below — e.g. Google
             Calendar → Settings → “Secret address in iCal format”.
           </p>
@@ -793,7 +810,7 @@ function GoogleSettings() {
 
       {!status.configured ? (
         <div className="flex flex-col gap-2">
-          <p className="font-serif italic text-xs text-base-content/45">
+          <p className="font-serif italic text-xs text-base-content/65">
             Create one “Web application” OAuth client in Google Cloud (shared by all Google
             modules). Set <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
             <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in <code className="font-mono">.env</code>{" "}
@@ -838,7 +855,7 @@ function GoogleSettings() {
       ) : (
         <div className="flex flex-col gap-3">
           {status.accounts.length === 0 ? (
-            <p className="font-serif italic text-xs text-base-content/45">
+            <p className="font-serif italic text-xs text-base-content/65">
               Client configured. Connect an account to choose calendars.
             </p>
           ) : (

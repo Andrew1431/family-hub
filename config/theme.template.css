@@ -30,11 +30,13 @@
   prefersdark: true;
   color-scheme: dark;
 
-  /* Surfaces: base-100 = app background, 200/300 = raised panels */
-  --color-base-100: #1a1210;
-  --color-base-200: #241a16;
-  --color-base-300: #2e211c;
-  --color-base-content: #f0ebe2;
+  /* Surfaces: base-100 = app background, 200/300 = raised panels.
+     Brightened from the original near-black browns so the wall display reads
+     clearly across a room; panels (base-200) sit clearly above the app bg. */
+  --color-base-100: #231915;
+  --color-base-200: #2f221b;
+  --color-base-300: #3b2a21;
+  --color-base-content: #fbf7f0;
 
   /* Copper — primary accent (buttons, AI orb, active states) */
   --color-primary: #c4956a;
@@ -49,8 +51,8 @@
   --color-accent-content: #06201d;
 
   /* Muted browns for subdued chrome */
-  --color-neutral: #2a201b;
-  --color-neutral-content: #b8a898;
+  --color-neutral: #3a2c24;
+  --color-neutral-content: #cbbcab;
 
   /* Status colors (double as priority / who hints) */
   --color-info: #3b82f6;

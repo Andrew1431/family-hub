@@ -25,21 +25,21 @@ function ClockPanel(_props: PanelProps) {
       <div className="flex items-end gap-3 leading-none">
         <span
           className="font-mono font-light tracking-tight text-base-content"
-          style={{ fontSize: "clamp(48px, 8vw, 96px)" }}
+          style={{ fontSize: "clamp(56px, 9vw, 116px)" }}
         >
           {hr}:{m}
         </span>
         <span
-          className="font-mono font-light text-base-content/60 pb-[0.12em]"
-          style={{ fontSize: "clamp(18px, 3vw, 34px)" }}
+          className="font-mono font-light text-base-content/70 pb-[0.12em]"
+          style={{ fontSize: "clamp(20px, 3.2vw, 40px)" }}
         >
           {s}
           <span className="ml-1 text-[0.55em] tracking-wide">{ampm}</span>
         </span>
       </div>
       <div
-        className="mt-2 font-serif italic text-base-content/55"
-        style={{ fontSize: "clamp(13px, 1.8vw, 18px)" }}
+        className="mt-2 font-serif italic text-base-content/70"
+        style={{ fontSize: "clamp(15px, 2vw, 22px)" }}
       >
         {DAYS[now.getDay()]}, {MONTHS[now.getMonth()]} {now.getDate()}, {now.getFullYear()}
       </div>

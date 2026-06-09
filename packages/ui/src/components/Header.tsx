@@ -15,7 +15,7 @@ export function Header({
   if (!show) return null;
   return (
     <header className="flex items-start justify-between gap-6">
-      <div className="font-serif italic text-primary text-[clamp(14px,1.6vw,18px)]">
+      <div className="font-serif italic text-primary text-[clamp(16px,1.9vw,22px)]">
         {greeting()}, {familyName} 👋
       </div>
     </header>

@@ -68,25 +68,25 @@ function TaskRow({
   const done = task.status === "completed";
   const overdue = task.due && !done && isOverdue(task.due);
   return (
-    <div className="group flex items-start gap-2 py-1">
+    <div className="group flex items-start gap-2.5 py-1.5">
       <button
         onClick={onToggle}
         aria-label={done ? "Mark not done" : "Mark complete"}
-        className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-base-content/25 transition-colors"
+        className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-base-content/25 transition-colors"
         style={done ? { backgroundColor: color, borderColor: color } : {}}
       >
         {done && (
-          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <svg width="10" height="10" viewBox="0 0 8 8" fill="none">
             <path d="M1.5 4L3.5 6L6.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-base-100" />
           </svg>
         )}
       </button>
       <div className="min-w-0 flex-1">
-        <span className={`text-sm leading-snug ${done ? "text-base-content/35 line-through" : "text-base-content"}`}>
+        <span className={`text-[clamp(14px,1.5vw,17px)] leading-snug ${done ? "text-base-content/35 line-through" : "text-base-content"}`}>
           {task.title}
         </span>
         {task.due && !done && (
-          <div className={`mt-0.5 font-serif text-xs italic ${overdue ? "text-error/70" : "text-base-content/50"}`}>
+          <div className={`mt-0.5 font-serif text-[clamp(12px,1.3vw,14px)] italic ${overdue ? "text-error/80" : "text-base-content/70"}`}>
             {formatDue(task.due)}
           </div>
         )}
@@ -94,7 +94,7 @@ function TaskRow({
       <button
         onClick={onDelete}
         aria-label="Delete task"
-        className="mt-0.5 grid h-4 w-4 flex-shrink-0 place-items-center rounded text-base-content/0 transition-colors group-hover:text-base-content/35 hover:!text-error"
+        className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded text-base-content/0 transition-colors group-hover:text-base-content/35 hover:!text-error"
       >
         ✕
       </button>
@@ -116,7 +116,7 @@ function ListTasks({
   const active = list.tasks.filter((t) => t.status === "needsAction");
   const done = list.tasks.filter((t) => t.status === "completed");
   if (active.length === 0 && done.length === 0) {
-    return <div className="py-1 font-serif text-xs italic text-base-content/30">Nothing here yet</div>;
+    return <div className="py-1 font-serif text-[13px] italic text-base-content/55">Nothing here yet</div>;
   }
   return (
     <div className="flex flex-col">
@@ -131,7 +131,7 @@ function ListTasks({
       ))}
       {done.length > 0 && (
         <>
-          <div className="mb-1 mt-2 border-t border-base-content/8 pt-1 font-serif text-xs italic text-base-content/35">
+          <div className="mb-1 mt-2 border-t border-base-content/8 pt-1 font-serif text-[13px] italic text-base-content/45">
             Completed
           </div>
           {done.map((t) => (
@@ -284,7 +284,7 @@ function TodoPanel(_props: PanelProps) {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-base-content/50">{remaining} left</span>
+          <span className="font-mono text-sm text-base-content/70">{remaining} left</span>
           {lists.length > 1 && (
             <div className="flex items-center gap-0.5 rounded-md bg-base-content/5 p-0.5">
               <ViewBtn active={viewMode === "stacked"} label="Stacked view" onClick={() => void switchView("stacked")}>
@@ -358,8 +358,8 @@ function TodoPanel(_props: PanelProps) {
             <button
               key={l.id}
               onClick={() => setActiveId(l.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
-                l.id === activeId ? "bg-base-content/10 text-base-content" : "text-base-content/55 hover:bg-base-content/5"
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-colors ${
+                l.id === activeId ? "bg-base-content/10 text-base-content" : "text-base-content/65 hover:bg-base-content/5"
               }`}
             >
               <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
@@ -380,7 +380,7 @@ function TodoPanel(_props: PanelProps) {
       ) : error ? (
         <div className="flex flex-1 items-center justify-center text-xs text-error/70">{error}</div>
       ) : lists.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-4 text-center font-serif text-xs italic text-base-content/40">
+        <div className="flex flex-1 items-center justify-center px-4 text-center font-serif text-xs italic text-base-content/60">
           No lists yet. Open settings (hover the card, click the cog) to connect Google and add a list.
         </div>
       ) : viewMode === "tabs" ? (
@@ -391,10 +391,10 @@ function TodoPanel(_props: PanelProps) {
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
           {lists.map((list) => (
             <div key={list.id}>
-              <div className="mb-1 flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: list.color }} />
-                <span className="font-sans text-xs tracking-wide text-base-content/60">{list.title}</span>
-                <span className="font-mono text-[11px] text-base-content/35">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: list.color }} />
+                <span className="font-sans text-[clamp(13px,1.4vw,15px)] tracking-wide text-base-content/80">{list.title}</span>
+                <span className="font-mono text-xs text-base-content/45">
                   ({list.tasks.filter((t) => t.status === "completed").length}/{list.tasks.length})
                 </span>
               </div>
@@ -587,7 +587,7 @@ function TodoSettings({ onClose }: SettingsProps) {
       {!status.configured ? (
         <div className="flex flex-col gap-2">
           <div className="panel-label">Google account</div>
-          <p className="font-serif text-xs italic text-base-content/45">
+          <p className="font-serif text-xs italic text-base-content/65">
             Reuses the hub's shared OAuth client (same one the calendar uses). Set{" "}
             <code className="font-mono">GOOGLE_CLIENT_ID</code> / <code className="font-mono">GOOGLE_CLIENT_SECRET</code>{" "}
             in <code className="font-mono">.env</code> and restart — or paste them below. Register this redirect URI:
@@ -632,7 +632,7 @@ function TodoSettings({ onClose }: SettingsProps) {
         <div className="flex flex-col gap-3">
           <div className="panel-label">Lists</div>
           {status.accounts.length === 0 ? (
-            <p className="font-serif text-xs italic text-base-content/45">
+            <p className="font-serif text-xs italic text-base-content/65">
               Client configured. Connect the shared family account to manage lists.
             </p>
           ) : (

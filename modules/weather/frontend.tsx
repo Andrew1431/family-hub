@@ -40,24 +40,27 @@ function WeatherPanel(_props: PanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 p-1">
+    // justify-between + min-h-0 lets the panel absorb whatever height it's given
+    // without ever clipping the stats row (the bottom High/Low/UV line was being
+    // cut off at 1080p when the panel was short).
+    <div className="flex h-full min-h-0 flex-col justify-between gap-2">
       <div className="panel-label">Weather</div>
 
       {/* Icon + temperature + condition */}
-      <div className="flex items-center gap-4">
-        <span style={{ fontSize: "clamp(36px, 5vw, 52px)", lineHeight: 1 }}>
+      <div className="flex min-h-0 flex-1 items-center gap-4">
+        <span style={{ fontSize: "clamp(44px, 6vw, 68px)", lineHeight: 1 }}>
           {data.icon}
         </span>
         <div>
           <div
             className="font-mono font-light leading-none text-base-content"
-            style={{ fontSize: "clamp(32px, 4.5vw, 48px)" }}
+            style={{ fontSize: "clamp(38px, 5vw, 60px)" }}
           >
             {data.temp}°{data.unit}
           </div>
           <div
-            className="mt-1 font-serif italic text-base-content/60"
-            style={{ fontSize: "clamp(11px, 1.4vw, 14px)" }}
+            className="mt-1 font-serif italic text-base-content/70"
+            style={{ fontSize: "clamp(13px, 1.6vw, 17px)" }}
           >
             {data.condition}
           </div>
@@ -65,7 +68,7 @@ function WeatherPanel(_props: PanelProps) {
       </div>
 
       {/* High / Low / Humidity */}
-      <div className="grid grid-cols-4 gap-2 border-t border-base-content/10 pt-2">
+      <div className="grid shrink-0 grid-cols-4 gap-2 border-t border-base-content/15 pt-2.5">
         {[
           { label: "High",     value: `${data.high}°` },
           { label: "Low",      value: `${data.low}°` },
@@ -75,13 +78,13 @@ function WeatherPanel(_props: PanelProps) {
           <div key={label} className="flex flex-col items-center gap-0.5">
             <span
               className="font-mono text-base-content"
-              style={{ fontSize: "clamp(12px, 1.5vw, 15px)" }}
+              style={{ fontSize: "clamp(15px, 1.8vw, 19px)" }}
             >
               {value}
             </span>
             <span
-              className="font-serif italic text-base-content/50"
-              style={{ fontSize: "clamp(9px, 1vw, 11px)" }}
+              className="font-serif italic text-base-content/65"
+              style={{ fontSize: "clamp(11px, 1.2vw, 13px)" }}
             >
               {label}
             </span>
