@@ -14,7 +14,7 @@ single-purpose, and worth protecting from "improvement."
 
 ---
 
-## 1. Close the typecheck gap (do first)
+## ~~1. Close the typecheck gap~~ ✓ done (2026-06-09)
 
 **Problem.** `pnpm -r typecheck` only covers `@hub/sdk`, `@hub/core`, `@hub/ui` — no module
 has a `typecheck` script. Module *frontends* are typechecked incidentally (the UI's generated
