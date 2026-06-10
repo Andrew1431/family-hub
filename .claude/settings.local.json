@@ -37,7 +37,9 @@
       "Bash(curl -s -m 5 http://localhost:4000/api/health)",
       "Bash(curl -s -m 10 http://localhost:4000/api/m/calendar-google/events)",
       "Bash(pnpm exec *)",
-      "Bash(pnpm typecheck *)"
+      "Bash(pnpm typecheck *)",
+      "PowerShell(pnpm typecheck *)",
+      "PowerShell(pnpm *)"
     ]
   }
 }

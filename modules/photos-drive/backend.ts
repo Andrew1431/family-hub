@@ -16,7 +16,12 @@ import {
 } from "./google";
 
 /*
- * Photos module — a slideshow sourced from one Google Drive folder.
+ * Photos module — slideshows sourced from Google Drive folders.
+ *
+ * ONE Drive account is shared by the whole module, but the source FOLDER is
+ * per-widget: each placed instance picks its own folder (stored under
+ * `folder:<instanceId>`), so two Photos widgets can show different albums. The
+ * screensaver is global and unions every instance's folder.
  *
  * The UI never sees a Google token: it lists photos as opaque ids and loads
  * each via `/photo/:id`, which streams the bytes through the core (Drive's
@@ -27,14 +32,18 @@ import {
 const DEFAULT_REDIRECT_BASE = "http://localhost:4000";
 const OAUTH_STATE_TTL_MS = 10 * 60_000;
 const LIST_CACHE_TTL_MS = 5 * 60_000;
+const FOLDER_PREFIX = "folder:";
+// The screensaver's source folder is global; it's stored like a widget folder
+// but under a reserved instance id, so it reuses the same picker + /folder route.
+const SCREENSAVER_INSTANCE = "__screensaver__";
 
 async function getAccount(config: KVStore): Promise<DriveAccount | null> {
   const a = await config.get<DriveAccount | null>("account");
   return a && a.id ? a : null;
 }
 
-async function getFolder(config: KVStore): Promise<DriveFolder | null> {
-  const f = await config.get<DriveFolder | null>("folder");
+async function getFolder(config: KVStore, instanceId: string): Promise<DriveFolder | null> {
+  const f = await config.get<DriveFolder | null>(`${FOLDER_PREFIX}${instanceId}`);
   return f && f.id ? f : null;
 }
 
@@ -92,15 +101,18 @@ function oauthPage(message: string, ok: boolean): string {
 
 export default defineBackend((ctx) => {
   // Snapshot for the settings UI: client configured?, the redirect URI to
-  // register in Google Cloud, the connected account, and the chosen folder.
-  ctx.route("GET", "/oauth/status", async () => {
+  // register in Google Cloud, the connected account, and (when an instance is
+  // given) that widget's chosen folder. Account is global; folder is per-widget.
+  ctx.route("GET", "/oauth/status", async ({ query }) => {
     const creds = await getCreds(ctx.secrets);
     const redirectBase = await ctx.config.get<string>("redirectBase");
+    const instance = (query as { instance?: string }).instance?.trim();
     return {
       configured: Boolean(creds),
       redirectUri: redirectUriFrom(redirectBase),
       account: await getAccount(ctx.config),
-      folder: await getFolder(ctx.config),
+      folder: instance ? await getFolder(ctx.config, instance) : null,
+      screensaverFolder: await getFolder(ctx.config, SCREENSAVER_INSTANCE),
     };
   });
 
@@ -166,7 +178,8 @@ export default defineBackend((ctx) => {
     }
   });
 
-  // Disconnect: revoke the grant, drop the account + chosen folder.
+  // Disconnect: revoke the grant, drop the account + every widget's folder
+  // (the ids are scoped to this account and become invalid once it's gone).
   ctx.route("DELETE", "/account", async () => {
     const account = await getAccount(ctx.config);
     if (account) {
@@ -176,7 +189,9 @@ export default defineBackend((ctx) => {
       clearTokenCache(account.id);
     }
     await ctx.config.set("account", null);
-    await ctx.config.set("folder", null);
+    for (const key of Object.keys(await ctx.config.all())) {
+      if (key.startsWith(FOLDER_PREFIX)) await ctx.config.delete(key);
+    }
     listCache.clear();
     return { ok: true };
   });
@@ -194,22 +209,39 @@ export default defineBackend((ctx) => {
     }
   });
 
-  // Persist the chosen source folder.
+  // Persist a widget's chosen source folder (keyed by its instance id).
   ctx.route("PUT", "/folder", async ({ body }) => {
-    const b = body as { folder?: DriveFolder | null } | undefined;
+    const b = body as { instanceId?: string; folder?: DriveFolder | null } | undefined;
+    const instanceId = b?.instanceId?.trim();
+    if (!instanceId) return { ok: false, error: "instanceId is required" };
     const folder = b?.folder;
     if (folder && (!folder.id || !folder.name)) {
       return { ok: false, error: "folder needs id and name" };
     }
-    await ctx.config.set("folder", folder ?? null);
+    await ctx.config.set(`${FOLDER_PREFIX}${instanceId}`, folder ?? null);
     listCache.clear();
     return { ok: true };
   });
 
-  // The panel's photo list: ids only (loaded via /photo/:id).
-  ctx.route("GET", "/photos", async () => {
+  // One widget's photo list: ids only (loaded via /photo/:id). ?instance scopes
+  // it to that widget's chosen folder.
+  ctx.route("GET", "/photos", async ({ query }) => {
+    const instance = (query as { instance?: string }).instance?.trim();
     const account = await getAccount(ctx.config);
-    const folder = await getFolder(ctx.config);
+    const folder = instance ? await getFolder(ctx.config, instance) : null;
+    if (!account) return { ok: false, reason: "not-connected", photos: [] };
+    if (!folder) return { ok: false, reason: "no-folder", photos: [] };
+    try {
+      return { ok: true, folder, photos: await photosFor(ctx.secrets, account, folder.id) };
+    } catch (err) {
+      return { ok: false, reason: "error", error: err instanceof Error ? err.message : String(err), photos: [] };
+    }
+  });
+
+  // The screensaver's photo list: its own globally-chosen folder.
+  ctx.route("GET", "/photos/screensaver", async () => {
+    const account = await getAccount(ctx.config);
+    const folder = await getFolder(ctx.config, SCREENSAVER_INSTANCE);
     if (!account) return { ok: false, reason: "not-connected", photos: [] };
     if (!folder) return { ok: false, reason: "no-folder", photos: [] };
     try {

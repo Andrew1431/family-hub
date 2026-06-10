@@ -16,14 +16,21 @@ export interface PanelProps {
  * supplies the surrounding modal chrome (backdrop, Esc, focus); the module only
  * renders the body and calls `onClose` when done.
  *
- * Settings edit MODULE-GLOBAL config (the module's own config/secret stores via
- * `/api/m/<name>/...`), not per-widget appearance — so they're reachable from the
- * central Settings hub whether or not the module is placed on a dashboard.
- * Per-instance appearance lives on `PanelProps.settings` instead.
+ * Settings primarily edit MODULE-GLOBAL config (the module's own config/secret
+ * stores via `/api/m/<name>/...`), so they're reachable from the central Settings
+ * hub whether or not the module is placed on a dashboard. When opened from a
+ * specific placed card's cog, `instanceId` is set, letting a module also expose
+ * per-widget settings (e.g. a per-instance source) alongside the global ones; it
+ * is `undefined` when opened from the central hub (no specific instance).
  */
 export interface SettingsProps {
   /** The owning module's name; use it to scope API calls + bus topics. */
   moduleName: string;
+  /**
+   * The widget instance whose cog opened these settings, when applicable.
+   * `undefined` when opened from the central Settings hub (no placed instance).
+   */
+  instanceId?: string;
   onClose: () => void;
 }
 

@@ -26,8 +26,15 @@ interface OAuthStatus {
   configured: boolean;
   redirectUri: string;
   account: DriveAccount | null;
+  /** The opened widget's folder (null when opened from the central hub). */
   folder: DriveFolder | null;
+  /** The global screensaver folder. */
+  screensaverFolder: DriveFolder | null;
 }
+
+// Reserved instance id under which the global screensaver folder is stored
+// (kept in sync with the backend) — lets it reuse the per-widget folder picker.
+const SCREENSAVER_INSTANCE = "__screensaver__";
 interface PhotosResult {
   ok: boolean;
   reason?: "not-connected" | "no-folder" | "error";
@@ -45,8 +52,16 @@ const CONFIG_DEFAULTS: PhotoConfig = { intervalSec: 8, screensaver: true, idleSe
 
 const photoUrl = (id: string): string => `/api/m/photos-drive/photo/${encodeURIComponent(id)}`;
 
-async function fetchPhotos(): Promise<PhotosResult> {
-  const r = await fetch("/api/m/photos-drive/photos");
+/** One widget's photos (scoped to its instance's chosen folder). */
+async function fetchPhotos(instanceId: string): Promise<PhotosResult> {
+  const r = await fetch(`/api/m/photos-drive/photos?instance=${encodeURIComponent(instanceId)}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json() as Promise<PhotosResult>;
+}
+
+/** The screensaver's photos (its own globally-chosen folder). */
+async function fetchScreensaverPhotos(): Promise<PhotosResult> {
+  const r = await fetch("/api/m/photos-drive/photos/screensaver");
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json() as Promise<PhotosResult>;
 }
@@ -137,10 +152,10 @@ function Hint({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PhotosPanel(_props: PanelProps) {
+function PhotosPanel({ instanceId }: PanelProps) {
   const photosQuery = useQuery({
-    queryKey: ["photos", "list"],
-    queryFn: fetchPhotos,
+    queryKey: ["photos", "list", instanceId],
+    queryFn: () => fetchPhotos(instanceId),
     refetchInterval: 5 * 60_000,
   });
   const { data: config } = useQuery({ queryKey: ["photos", "config"], queryFn: fetchPhotoConfig });
@@ -192,8 +207,8 @@ function PhotosPanel(_props: PanelProps) {
 function PhotosOverlay({ idleMs, setActive }: OverlayProps) {
   const { data: config } = useQuery({ queryKey: ["photos", "config"], queryFn: fetchPhotoConfig });
   const { data: result } = useQuery({
-    queryKey: ["photos", "list"],
-    queryFn: fetchPhotos,
+    queryKey: ["photos", "screensaver"],
+    queryFn: fetchScreensaverPhotos,
     refetchInterval: 5 * 60_000,
   });
 
@@ -219,17 +234,22 @@ function PhotosOverlay({ idleMs, setActive }: OverlayProps) {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-async function fetchStatus(): Promise<OAuthStatus> {
-  const r = await fetch("/api/m/photos-drive/oauth/status");
+async function fetchStatus(instanceId?: string): Promise<OAuthStatus> {
+  const qs = instanceId ? `?instance=${encodeURIComponent(instanceId)}` : "";
+  const r = await fetch(`/api/m/photos-drive/oauth/status${qs}`);
   return r.json() as Promise<OAuthStatus>;
 }
 
 function FolderPicker({
+  instanceId,
   current,
   onPicked,
+  label = "Source folder",
 }: {
+  instanceId: string;
   current: DriveFolder | null;
   onPicked: () => void;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [path, setPath] = useState<FolderEntry[]>([]);
@@ -277,7 +297,7 @@ function FolderPicker({
     await fetch("/api/m/photos-drive/folder", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder: { id: f.id, name: f.name } }),
+      body: JSON.stringify({ instanceId, folder: { id: f.id, name: f.name } }),
     });
     setBusy(false);
     setOpen(false);
@@ -288,7 +308,7 @@ function FolderPicker({
     return (
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="panel-label">Source folder</div>
+          <div className="panel-label">{label}</div>
           <div className="mt-0.5 truncate font-sans text-sm text-base-content/80">
             {current ? current.name : <span className="italic text-base-content/45">None chosen</span>}
           </div>
@@ -368,7 +388,7 @@ function FolderPicker({
   );
 }
 
-function PhotosSettings({ onClose }: SettingsProps) {
+function PhotosSettings({ instanceId, onClose }: SettingsProps) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
   const [cfg, setCfg] = useState<PhotoConfig | null>(null);
@@ -378,13 +398,13 @@ function PhotosSettings({ onClose }: SettingsProps) {
   const [savingOpts, setSavingOpts] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Invalidate every per-widget list + the screensaver union + the config.
   function refreshPanel() {
-    void qc.invalidateQueries({ queryKey: ["photos", "list"] });
-    void qc.invalidateQueries({ queryKey: ["photos", "config"] });
+    void qc.invalidateQueries({ queryKey: ["photos"] });
   }
 
   function load() {
-    void fetchStatus().then(setStatus).catch(() => {});
+    void fetchStatus(instanceId).then(setStatus).catch(() => {});
     void fetchPhotoConfig().then(setCfg).catch(() => setCfg(CONFIG_DEFAULTS));
     refreshPanel();
   }
@@ -496,16 +516,13 @@ function PhotosSettings({ onClose }: SettingsProps) {
             </button>
           </div>
         ) : status.account ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5">
-              <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
-                {status.account.email}
-              </span>
-              <button onClick={() => void disconnect()} className="text-[11px] text-base-content/40 hover:text-error">
-                Disconnect
-              </button>
-            </div>
-            <FolderPicker current={status.folder} onPicked={load} />
+          <div className="flex items-center gap-2 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5">
+            <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
+              {status.account.email}
+            </span>
+            <button onClick={() => void disconnect()} className="text-[11px] text-base-content/40 hover:text-error">
+              Disconnect
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -536,7 +553,22 @@ function PhotosSettings({ onClose }: SettingsProps) {
         )}
       </section>
 
-      {/* ── Slideshow + screensaver options ───────────────────────────────── */}
+      {/* ── This widget's source folder (per-instance) ────────────────────── */}
+      {status.account && (
+        <section className="flex flex-col gap-3 border-t border-base-content/10 pt-4">
+          <div className="panel-label">This widget</div>
+          {instanceId ? (
+            <FolderPicker instanceId={instanceId} current={status.folder} onPicked={load} />
+          ) : (
+            <p className="font-serif italic text-xs text-base-content/55">
+              Each Photos widget shows its own folder. Open a widget’s settings from the cog on
+              its card to choose that one’s folder.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── Slideshow + screensaver options (global) ──────────────────────── */}
       <section className="flex flex-col gap-4 border-t border-base-content/10 pt-4">
         <div className="panel-label">Slideshow</div>
 
@@ -589,6 +621,19 @@ function PhotosSettings({ onClose }: SettingsProps) {
             <span className="text-xs text-base-content/55">sec</span>
           </span>
         </label>
+
+        {status.account && (
+          <div
+            className={`transition-opacity ${cfg.screensaver ? "" : "pointer-events-none opacity-40"}`}
+          >
+            <FolderPicker
+              instanceId={SCREENSAVER_INSTANCE}
+              current={status.screensaverFolder}
+              onPicked={load}
+              label="Screensaver folder"
+            />
+          </div>
+        )}
       </section>
 
       <div className="flex justify-end gap-2 border-t border-base-content/10 pt-3">
