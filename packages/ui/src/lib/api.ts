@@ -3,8 +3,10 @@ import type { ModuleManifest, LayoutConfig } from "@hub/sdk";
 export interface HubConfig {
   familyName: string;
   showGreeting: boolean;
-  /** Show the AI assistant orb/chat bubble. When false the grid reclaims the space. */
+  /** Enable the AI assistant feature (orb + Spacebar + chat). When false the grid reclaims the space. */
   showAssistant: boolean;
+  /** Show the orb itself. When false the orb is hidden but Spacebar still opens the chat (only applies when showAssistant). */
+  showOrb: boolean;
   theme: string;
 }
 

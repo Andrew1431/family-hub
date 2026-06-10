@@ -19,6 +19,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string>("");
 
   const showAssistant = config?.showAssistant !== false; // default on for older configs
+  const showOrb = config?.showOrb !== false; // default on; only meaningful when showAssistant
 
   useEffect(() => {
     Promise.all([fetchModules(), fetchLayout(), fetchConfig()])
@@ -99,7 +100,7 @@ export default function App() {
           defaults={{ columns: layout.columns, ...(layout.rows ? { rows: layout.rows } : {}) }}
         />
       )}
-      {showAssistant && (
+      {showAssistant && showOrb && (
         <footer className="flex justify-center">
           <AssistantOrb onClick={() => setChatOpen(true)} />
         </footer>

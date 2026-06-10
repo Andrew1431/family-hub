@@ -76,8 +76,8 @@ export function HubSettings({
               Family assistant
             </span>
             <span className="mt-0.5 block text-xs text-base-content/55">
-              Show the AI chat orb at the bottom of the dashboard. When off, the panels
-              grow to fill the space and the assistant is fully hidden.
+              Enable the AI assistant. When off, the orb and Spacebar shortcut are
+              disabled and the panels grow to fill the space.
             </span>
           </span>
           <input
@@ -88,6 +88,27 @@ export function HubSettings({
             onChange={(e) => patch({ showAssistant: e.target.checked })}
           />
         </label>
+        {config.showAssistant && (
+          <label className="flex cursor-pointer items-start justify-between gap-4">
+            <span>
+              <span className="block font-sans text-sm font-medium text-base-content">
+                Show the orb
+              </span>
+              <span className="mt-0.5 block text-xs text-base-content/55">
+                Show the copper orb at the bottom of the dashboard. When off, the orb is
+                hidden but pressing <kbd className="kbd kbd-xs">space</kbd> still opens the
+                assistant.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="toggle toggle-primary mt-0.5 shrink-0"
+              checked={config.showOrb !== false}
+              disabled={saving}
+              onChange={(e) => patch({ showOrb: e.target.checked })}
+            />
+          </label>
+        )}
         {error && <p className="text-xs text-error">{error}</p>}
       </section>
 
