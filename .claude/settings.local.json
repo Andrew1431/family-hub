@@ -35,7 +35,9 @@
       "Bash(node -e \"const ical=require\\('node-ical'\\); console.log\\('keys:', Object.keys\\(ical\\)\\); console.log\\('async:', ical.async && Object.keys\\(ical.async\\)\\); console.log\\('ver:', require\\('node-ical/package.json'\\).version\\)\")",
       "Bash(node *)",
       "Bash(curl -s -m 5 http://localhost:4000/api/health)",
-      "Bash(curl -s -m 10 http://localhost:4000/api/m/calendar-google/events)"
+      "Bash(curl -s -m 10 http://localhost:4000/api/m/calendar-google/events)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm typecheck *)"
     ]
   }
 }

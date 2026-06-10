@@ -1,0 +1,8 @@
+{
+  "$comment": "Photo slideshow settings. Editable from the central Settings hub or the placed widget's cog. `folder` and `account` are filled in by the OAuth + folder-picker flow. intervalSec = how long each photo shows; screensaver = whether the slideshow also takes over the whole screen when idle; idleSec = idle seconds before that happens.",
+  "intervalSec": 8,
+  "screensaver": true,
+  "idleSec": 120,
+  "folder": null,
+  "account": null
+}

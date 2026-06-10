@@ -53,6 +53,21 @@ importers:
       '@hub/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@tanstack/react-query':
+        specifier: '>=5'
+        version: 5.101.0(react@19.2.7)
+      react:
+        specifier: '>=18'
+        version: 19.2.7
+
+  modules/photos-drive:
+    dependencies:
+      '@hub/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@tanstack/react-query':
+        specifier: '>=5'
+        version: 5.101.0(react@19.2.7)
       react:
         specifier: '>=18'
         version: 19.2.7

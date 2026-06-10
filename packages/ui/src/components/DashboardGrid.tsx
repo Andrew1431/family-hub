@@ -84,12 +84,7 @@ export function DashboardGrid({
 
       {settingsFor && SettingsComp && (
         <SettingsModal title={settingsModule?.title ?? settingsFor.module} onClose={() => setSettingsFor(null)}>
-          <SettingsComp
-            moduleName={settingsFor.module}
-            instanceId={settingsFor.id}
-            settings={settingsFor.settings ?? {}}
-            onClose={() => setSettingsFor(null)}
-          />
+          <SettingsComp moduleName={settingsFor.module} onClose={() => setSettingsFor(null)} />
         </SettingsModal>
       )}
     </div>

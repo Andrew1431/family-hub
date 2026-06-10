@@ -7,9 +7,7 @@ import { AssistantOrb } from "./components/AssistantOrb";
 import { ChatModal } from "./components/ChatModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { HubSettings } from "./components/HubSettings";
-
-/** Return to the Home (first) dashboard after this long with no interaction. */
-const INACTIVITY_RESET_MS = 60_000 * 5;
+import { OverlayHost } from "./components/OverlayHost";
 
 export default function App() {
   const [modules, setModules] = useState<ModuleManifest[] | null>(null);
@@ -33,24 +31,6 @@ export default function App() {
       })
       .catch((e) => setError(String(e)));
   }, []);
-
-  // Idle wall mirror: drift back to Home (first dashboard) after inactivity.
-  const homeId = layout?.dashboards[0]?.id;
-  useEffect(() => {
-    if (!homeId || activeId === homeId) return;
-    let timer: number;
-    const reset = () => {
-      clearTimeout(timer);
-      timer = window.setTimeout(() => setActiveId(homeId), INACTIVITY_RESET_MS);
-    };
-    const events = ["pointerdown", "keydown", "pointermove", "touchstart"] as const;
-    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
-    reset();
-    return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, reset));
-    };
-  }, [homeId, activeId]);
 
   // Spacebar opens the assistant — but never while typing in a field, and not
   // when the assistant is disabled.
@@ -126,10 +106,13 @@ export default function App() {
       )}
       {showAssistant && chatOpen && <ChatModal onClose={() => setChatOpen(false)} />}
       {settingsOpen && (
-        <SettingsModal title="Hub" onClose={() => setSettingsOpen(false)}>
-          <HubSettings config={config} onChange={setConfig} />
+        <SettingsModal title="Settings" onClose={() => setSettingsOpen(false)}>
+          <HubSettings config={config} modules={modules} onChange={setConfig} />
         </SettingsModal>
       )}
+      {/* Full-screen module overlays (e.g. the photos screensaver). Each decides
+          when to show based on the global idle signal. */}
+      <OverlayHost modules={modules} />
     </div>
   );
 }

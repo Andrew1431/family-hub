@@ -28,6 +28,6 @@ export type {
 export type { ModuleBackend } from "./backend.js";
 export { defineBackend } from "./backend.js";
 export type { RawResponse } from "./http.js";
-export { html, redirect, isRawResponse } from "./http.js";
-export type { PanelProps, SettingsProps, ModuleFrontend } from "./frontend.js";
+export { html, redirect, binary, isRawResponse } from "./http.js";
+export type { PanelProps, SettingsProps, OverlayProps, ModuleFrontend } from "./frontend.js";
 export { defineModule } from "./frontend.js";
