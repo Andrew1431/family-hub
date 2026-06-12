@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
 // ── Types (mirror backend google.ts) ─────────────────────────────────────────
@@ -520,11 +521,7 @@ interface OAuthStatus {
 function TodoSettings({ onClose }: SettingsProps) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [savingClient, setSavingClient] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -538,20 +535,6 @@ function TodoSettings({ onClose }: SettingsProps) {
   }
 
   useEffect(load, []);
-
-  async function saveClient() {
-    if (!clientId.trim() || !clientSecret.trim()) return;
-    setSavingClient(true);
-    await fetch(`${API}/oauth/client`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    });
-    setSavingClient(false);
-    setClientId("");
-    setClientSecret("");
-    load();
-  }
 
   function connect() {
     const popup = window.open(`${API}/oauth/start`, "google-oauth", "width=520,height=640");
@@ -646,46 +629,22 @@ function TodoSettings({ onClose }: SettingsProps) {
       {!status.configured ? (
         <div className="flex flex-col gap-2">
           <div className="panel-label">Google account</div>
-          <p className="font-serif text-xs italic text-base-content/65">
-            Reuses the hub's shared OAuth client (same one the calendar uses). Set{" "}
-            <code className="font-mono">GOOGLE_CLIENT_ID</code> / <code className="font-mono">GOOGLE_CLIENT_SECRET</code>{" "}
-            in <code className="font-mono">.env</code> and restart — or paste them below. Register this redirect URI:
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
-              {status.redirectUri}
-            </code>
-            <button
-              className="btn btn-xs btn-ghost"
-              onClick={() => {
-                void navigator.clipboard?.writeText(status.redirectUri);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="Client ID"
-            className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
+          <GoogleConnect
+            apiBase={API}
+            configured={status.configured}
+            redirectUri={status.redirectUri}
+            onChanged={load}
+            showConnect={false}
+            intro={
+              <p className="font-serif text-xs italic text-base-content/65">
+                Reuses the hub's shared OAuth client (same one the calendar uses). Set{" "}
+                <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
+                <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in{" "}
+                <code className="font-mono">.env</code> and restart — or paste them below. Register
+                this one redirect URI (shared by every Google module):
+              </p>
+            }
           />
-          <input
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            placeholder="Client secret"
-            type="password"
-            className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
-          />
-          <button
-            className="btn btn-sm btn-primary self-start"
-            onClick={() => void saveClient()}
-            disabled={!clientId.trim() || !clientSecret.trim() || savingClient}
-          >
-            {savingClient ? "Saving…" : "Save client"}
-          </button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

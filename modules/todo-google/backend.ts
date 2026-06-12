@@ -1,20 +1,21 @@
-import { defineBackend, html, redirect, type KVStore } from "@hub/sdk";
+import { defineBackend, type KVStore } from "@hub/sdk";
 import {
   accessTokenFor,
-  authUrl,
   clearTokenCache,
+  registerGoogleOAuthRoutes,
+  revokeToken,
+} from "@hub/google";
+import {
   deleteTask,
   deleteTaskList,
-  exchangeCode,
   fetchTaskLists,
   fetchTasks,
   fetchUserInfo,
-  getCreds,
   insertTask,
   insertTaskList,
   patchTask,
   renameTaskList,
-  revokeToken,
+  SCOPES,
   type GoogleAccount,
   type GoogleTaskList,
   type ResolvedList,
@@ -41,8 +42,6 @@ interface DefaultList {
 
 type ViewMode = "stacked" | "tabs";
 
-const DEFAULT_REDIRECT_BASE = "http://localhost:4000";
-const OAUTH_STATE_TTL_MS = 10 * 60_000;
 const PALETTE = [
   "#10b981", "#6366f1", "#ec4899", "#f59e0b",
   "#3b82f6", "#ef4444", "#14b8a6", "#a855f7",
@@ -62,10 +61,6 @@ async function getDefaultList(config: KVStore): Promise<DefaultList | null> {
 
 async function getViewMode(config: KVStore): Promise<ViewMode> {
   return (await config.get<ViewMode>("viewMode")) === "tabs" ? "tabs" : "stacked";
-}
-
-function redirectUriFrom(base: string | undefined): string {
-  return `${(base ?? DEFAULT_REDIRECT_BASE).replace(/\/$/, "")}/api/m/todo-google/oauth/callback`;
 }
 
 // ── List metadata merge ───────────────────────────────────────────────────────
@@ -104,39 +99,6 @@ async function resolveAccounts(
       }
     }),
   );
-}
-
-// ── OAuth CSRF state (in-memory; single process) ─────────────────────────────
-
-const oauthStates = new Map<string, number>();
-
-function newState(): string {
-  const s = crypto.randomUUID();
-  oauthStates.set(s, Date.now());
-  return s;
-}
-
-function consumeState(state: string): boolean {
-  const at = oauthStates.get(state);
-  if (at === undefined) return false;
-  oauthStates.delete(state);
-  return Date.now() - at < OAUTH_STATE_TTL_MS;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
-}
-
-/** The page shown in the OAuth popup; closes itself on success. */
-function oauthPage(message: string, ok: boolean): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Family Hub</title>
-<style>body{font-family:system-ui,sans-serif;background:#1a1210;color:#f0e6dd;display:grid;place-items:center;height:100vh;margin:0}
-.card{max-width:420px;text-align:center;padding:2rem}.ico{font-size:3rem}.msg{margin-top:1rem;line-height:1.5;color:#cbb7ad}</style></head>
-<body><div class="card"><div class="ico">${ok ? "✅" : "⚠️"}</div><div class="msg">${escapeHtml(message)}</div></div>
-<script>setTimeout(function(){window.close()}, ${ok ? 1500 : 6000})</script></body></html>`;
 }
 
 // ── Backend ──────────────────────────────────────────────────────────────────
@@ -606,73 +568,26 @@ export default defineBackend((ctx) => {
 
   // ── Google OAuth + account/list settings ────────────────────────────────────
 
-  ctx.route("GET", "/oauth/status", async () => {
-    const creds = await getCreds(ctx.secrets);
-    const redirectBase = await ctx.config.get<string>("redirectBase");
-    return {
-      configured: Boolean(creds),
-      redirectUri: redirectUriFrom(redirectBase),
-      accounts: await resolveAccounts(await getAccounts(ctx.config), ctx.secrets, ctx.log),
-      defaultList: await getDefaultList(ctx.config),
-      viewMode: await getViewMode(ctx.config),
-    };
-  });
-
-  ctx.route("PUT", "/oauth/client", async ({ body }) => {
-    const b = body as { clientId?: string; clientSecret?: string } | undefined;
-    const clientId = b?.clientId?.trim();
-    const clientSecret = b?.clientSecret?.trim();
-    if (!clientId || !clientSecret) {
-      return { ok: false, error: "clientId and clientSecret are required" };
-    }
-    await ctx.secrets.set("clientId", clientId);
-    await ctx.secrets.set("clientSecret", clientSecret);
-    return { ok: true };
-  });
-
-  ctx.route("GET", "/oauth/start", async () => {
-    const creds = await getCreds(ctx.secrets);
-    if (!creds) {
-      return html(oauthPage("Add your Google Client ID and Secret in to-do settings first.", false));
-    }
-    const redirectBase = await ctx.config.get<string>("redirectBase");
-    return redirect(authUrl(creds, redirectUriFrom(redirectBase), newState()));
-  });
-
-  ctx.route("GET", "/oauth/callback", async ({ query }) => {
-    const q = query as { code?: string; state?: string; error?: string };
-    if (q.error) return html(oauthPage(`Google sign-in was cancelled (${q.error}).`, false));
-    if (!q.code || !q.state || !consumeState(q.state)) {
-      return html(oauthPage("Invalid or expired sign-in attempt. Please try again.", false));
-    }
-    try {
-      const creds = await getCreds(ctx.secrets);
-      if (!creds) return html(oauthPage("Google client isn't configured.", false));
-      const redirectBase = await ctx.config.get<string>("redirectBase");
-      const tokens = await exchangeCode(creds, redirectUriFrom(redirectBase), q.code);
-
-      const info = await fetchUserInfo(tokens.accessToken);
-      const accountId = info.email;
-
-      if (tokens.refreshToken) {
-        await ctx.secrets.set(`refresh:${accountId}`, tokens.refreshToken);
-      } else if (!(await ctx.secrets.get<string>(`refresh:${accountId}`))) {
-        return html(
-          oauthPage(
-            "Google didn't return a refresh token. Remove Family Hub at " +
-              "myaccount.google.com/permissions, then reconnect.",
-            false,
-          ),
-        );
-      }
-
-      const live = await fetchTaskLists(tokens.accessToken);
+  // The shared helper owns /oauth/status, /oauth/client and /oauth/start; the
+  // single callback lives in the google-oauth module. Tasks-specific bits:
+  // identify the account via the userinfo endpoint (a task list carries no owner
+  // email) and snapshot its lists on connect.
+  registerGoogleOAuthRoutes<{ name: string; live: { id: string; title: string }[] }>(ctx, {
+    scopes: SCOPES,
+    settingsLabel: "to-do settings",
+    identify: async (accessToken) => {
+      const info = await fetchUserInfo(accessToken);
+      const live = await fetchTaskLists(accessToken);
+      return { accountId: info.email, carry: { name: info.name, live } };
+    },
+    onConnected: async ({ accountId, carry }) => {
+      const { name, live } = carry ?? { name: accountId, live: [] };
       const accounts = await getAccounts(ctx.config);
       const prior = accounts.find((a) => a.id === accountId);
       const account: GoogleAccount = {
         id: accountId,
         email: accountId,
-        name: info.name,
+        name,
         lists: mergeLists(prior?.lists ?? [], live),
       };
       const next = prior
@@ -685,13 +600,12 @@ export default defineBackend((ctx) => {
         const first = account.lists.find((l) => l.enabled);
         if (first) await ctx.config.set("defaultList", { accountId, listId: first.id });
       }
-      clearTokenCache(accountId);
-      return html(oauthPage(`Connected ${accountId}. You can close this window.`, true));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      ctx.log.warn(`oauth callback failed: ${message}`);
-      return html(oauthPage(`Sign-in failed: ${message}`, false));
-    }
+    },
+    statusExtra: async () => ({
+      accounts: await resolveAccounts(await getAccounts(ctx.config), ctx.secrets, ctx.log),
+      defaultList: await getDefaultList(ctx.config),
+      viewMode: await getViewMode(ctx.config),
+    }),
   });
 
   // Persist list color/visibility choices, default list, and view mode.
@@ -711,7 +625,7 @@ export default defineBackend((ctx) => {
     const refresh = await ctx.secrets.get<string>(`refresh:${id}`);
     if (refresh) await revokeToken(refresh);
     await ctx.secrets.delete(`refresh:${id}`);
-    clearTokenCache(id);
+    clearTokenCache(ctx.secrets, id);
     const accounts = await getAccounts(ctx.config);
     await ctx.config.set("accounts", accounts.filter((a) => a.id !== id));
     const def = await getDefaultList(ctx.config);

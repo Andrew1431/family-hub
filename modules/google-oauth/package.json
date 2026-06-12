@@ -1,5 +1,5 @@
 {
-  "name": "@hub-module/todo-google",
+  "name": "@hub-module/google-oauth",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,9 +9,5 @@
   "dependencies": {
     "@hub/sdk": "workspace:*",
     "@hub/google": "workspace:*"
-  },
-  "peerDependencies": {
-    "@tanstack/react-query": ">=5",
-    "react": ">=18"
   }
 }

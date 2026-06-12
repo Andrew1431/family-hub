@@ -32,7 +32,14 @@ so even the documented manual command fails there.
 
 *Sequenced first so every refactor below is verified by the thing it's refactoring toward.*
 
-## 2. Extract `@hub/google` (the headline: ~800 duplicated lines)
+## ~~2. Extract `@hub/google` (the headline: ~800 duplicated lines)~~ ✓ done (2026-06-12)
+
+> Landed as `packages/google` (OAuth/token core + `registerGoogleOAuthRoutes` + `<GoogleConnect>`)
+> plus a tiny `modules/google-oauth` backend that mounts the **single shared callback**. All Google
+> modules now use ONE redirect URI: `http://localhost:4000/api/m/google-oauth/callback` (state carries
+> `<module>:<csrf>` so the shared callback dispatches to the right module's per-namespace token store).
+> `oauthStates` pruning is folded in.
+
 
 **Problem.** Three near-identical copies across `calendar-google`, `todo-google`,
 `photos-drive`, at three layers:

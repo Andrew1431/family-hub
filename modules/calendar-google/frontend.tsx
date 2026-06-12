@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
 interface ResolvedEvent {
@@ -970,11 +971,7 @@ function CalendarSettings({ onClose }: SettingsProps) {
 function GoogleSettings() {
   const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [savingClient, setSavingClient] = useState(false);
   const [savingCals, setSavingCals] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Any account/calendar change ripples to the panel's status + events.
   function refreshPanel() {
@@ -991,20 +988,6 @@ function GoogleSettings() {
   }
 
   useEffect(load, []);
-
-  async function saveClient() {
-    if (!clientId.trim() || !clientSecret.trim()) return;
-    setSavingClient(true);
-    await fetch("/api/m/calendar-google/oauth/client", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    });
-    setSavingClient(false);
-    setClientId("");
-    setClientSecret("");
-    load();
-  }
 
   function connect() {
     const popup = window.open(
@@ -1066,49 +1049,22 @@ function GoogleSettings() {
       <div className="panel-label">Google accounts</div>
 
       {!status.configured ? (
-        <div className="flex flex-col gap-2">
-          <p className="font-serif italic text-xs text-base-content/65">
-            Create one “Web application” OAuth client in Google Cloud (shared by all Google
-            modules). Set <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
-            <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in <code className="font-mono">.env</code>{" "}
-            and restart — or paste them below. Either way, register this exact redirect URI:
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
-              {status.redirectUri}
-            </code>
-            <button
-              className="btn btn-xs btn-ghost"
-              onClick={() => {
-                void navigator.clipboard?.writeText(status.redirectUri);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="Client ID"
-            className="input input-sm bg-base-content/5 border-base-content/10 font-mono text-xs"
-          />
-          <input
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            placeholder="Client secret"
-            type="password"
-            className="input input-sm bg-base-content/5 border-base-content/10 font-mono text-xs"
-          />
-          <button
-            className="btn btn-sm btn-primary self-start"
-            onClick={() => void saveClient()}
-            disabled={!clientId.trim() || !clientSecret.trim() || savingClient}
-          >
-            {savingClient ? "Saving…" : "Save client"}
-          </button>
-        </div>
+        <GoogleConnect
+          apiBase="/api/m/calendar-google"
+          configured={status.configured}
+          redirectUri={status.redirectUri}
+          onChanged={load}
+          showConnect={false}
+          intro={
+            <p className="font-serif italic text-xs text-base-content/65">
+              Create one “Web application” OAuth client in Google Cloud (shared by all Google
+              modules). Set <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
+              <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in{" "}
+              <code className="font-mono">.env</code> and restart — or paste them below. Either way,
+              register this one redirect URI (shared by every Google module):
+            </p>
+          }
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {status.accounts.length === 0 ? (

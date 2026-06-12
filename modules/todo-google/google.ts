@@ -1,13 +1,8 @@
-import type { KVStore } from "@hub/sdk";
-
 /*
  * Google Tasks over raw REST (no googleapis dep), mirroring the calendar module.
  *
- * Auth: standard OAuth2 authorization-code flow against the SAME shared client
- * (the hub's app identity) as every other Google module. The client_id/secret
- * live in secrets via the manifest's secretEnv aliases; each connected account's
- * refresh token is stored per-account in THIS module's secret namespace and never
- * sent to the UI. Access tokens are short-lived and cached in memory.
+ * Auth/token plumbing (creds, the OAuth flow, the access-token cache) lives in
+ * the shared `@hub/google` package; this file is the Tasks REST surface only.
  *
  * Unlike calendar, a task list carries no owner email, so we add the
  * userinfo.email scope and read the userinfo endpoint once at connect to learn
@@ -19,8 +14,6 @@ export const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
-const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const API = "https://tasks.googleapis.com/tasks/v1";
 
@@ -61,70 +54,7 @@ export interface ResolvedList {
   tasks: ResolvedTask[];
 }
 
-// ── Credentials ──────────────────────────────────────────────────────────────
-
-export interface Creds {
-  clientId: string;
-  clientSecret: string;
-}
-
-export async function getCreds(secrets: KVStore): Promise<Creds | null> {
-  const clientId = await secrets.get<string>("clientId");
-  const clientSecret = await secrets.get<string>("clientSecret");
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
-
-// ── OAuth flow ───────────────────────────────────────────────────────────────
-
-export function authUrl(creds: Creds, redirectUri: string, state: string): string {
-  const p = new URLSearchParams({
-    client_id: creds.clientId,
-    redirect_uri: redirectUri,
-    response_type: "code",
-    scope: SCOPES.join(" "),
-    access_type: "offline", // we want a refresh token
-    prompt: "consent", // force refresh_token issuance on re-connect
-    include_granted_scopes: "true",
-    state,
-  });
-  return `${AUTH_URL}?${p.toString()}`;
-}
-
-export interface TokenSet {
-  accessToken: string;
-  refreshToken?: string;
-  expiresIn: number;
-}
-
-export async function exchangeCode(
-  creds: Creds,
-  redirectUri: string,
-  code: string,
-): Promise<TokenSet> {
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: creds.clientId,
-      client_secret: creds.clientSecret,
-      redirect_uri: redirectUri,
-      grant_type: "authorization_code",
-    }),
-  });
-  if (!res.ok) throw new Error(`token exchange failed: ${res.status} ${await res.text()}`);
-  const j = (await res.json()) as {
-    access_token: string;
-    refresh_token?: string;
-    expires_in: number;
-  };
-  return {
-    accessToken: j.access_token,
-    expiresIn: j.expires_in,
-    ...(j.refresh_token ? { refreshToken: j.refresh_token } : {}),
-  };
-}
+// ── Account identity ──────────────────────────────────────────────────────────
 
 /** Identify the just-connected account from its access token. */
 export async function fetchUserInfo(
@@ -137,48 +67,6 @@ export async function fetchUserInfo(
   const j = (await res.json()) as { email?: string; name?: string };
   const email = j.email ?? "unknown";
   return { email, name: j.name ?? email };
-}
-
-// ── Access-token cache + refresh ─────────────────────────────────────────────
-
-const accessCache = new Map<string, { token: string; exp: number }>();
-
-/** A refresh-token failure (revoked/expired) — the account must reconnect. */
-export class AccountAuthError extends Error {}
-
-export async function accessTokenFor(secrets: KVStore, accountId: string): Promise<string> {
-  const cached = accessCache.get(accountId);
-  if (cached && cached.exp > Date.now() + 30_000) return cached.token;
-
-  const creds = await getCreds(secrets);
-  if (!creds) throw new Error("Google client is not configured");
-  const refreshToken = await secrets.get<string>(`refresh:${accountId}`);
-  if (!refreshToken) throw new AccountAuthError(`account ${accountId} is not connected`);
-
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: creds.clientId,
-      client_secret: creds.clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 400 || res.status === 401) {
-      throw new AccountAuthError(`refresh failed for ${accountId}: ${text}`);
-    }
-    throw new Error(`refresh failed for ${accountId}: ${res.status} ${text}`);
-  }
-  const j = (await res.json()) as { access_token: string; expires_in: number };
-  accessCache.set(accountId, { token: j.access_token, exp: Date.now() + j.expires_in * 1000 });
-  return j.access_token;
-}
-
-export function clearTokenCache(accountId: string): void {
-  accessCache.delete(accountId);
 }
 
 // ── Tasks REST ────────────────────────────────────────────────────────────────
@@ -338,16 +226,5 @@ export async function deleteTaskList(accessToken: string, listId: string): Promi
   });
   if (!res.ok && res.status !== 404) {
     throw new Error(`delete list failed: ${res.status} ${await res.text()}`);
-  }
-}
-
-/** Best-effort token revocation when disconnecting an account. */
-export async function revokeToken(token: string): Promise<void> {
-  try {
-    await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
-      method: "POST",
-    });
-  } catch {
-    /* ignore — we still drop our local copy */
   }
 }

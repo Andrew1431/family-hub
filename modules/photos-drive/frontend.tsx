@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps, type OverlayProps } from "@hub/sdk";
+import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
 // ── Shared shapes (mirror backend google.ts) ─────────────────────────────────
@@ -392,11 +393,7 @@ function PhotosSettings({ instanceId, onClose }: SettingsProps) {
   const qc = useQueryClient();
   const [status, setStatus] = useState<OAuthStatus | null>(null);
   const [cfg, setCfg] = useState<PhotoConfig | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [savingClient, setSavingClient] = useState(false);
   const [savingOpts, setSavingOpts] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Invalidate every per-widget list + the screensaver union + the config.
   function refreshPanel() {
@@ -410,30 +407,6 @@ function PhotosSettings({ instanceId, onClose }: SettingsProps) {
   }
 
   useEffect(load, []);
-
-  async function saveClient() {
-    if (!clientId.trim() || !clientSecret.trim()) return;
-    setSavingClient(true);
-    await fetch("/api/m/photos-drive/oauth/client", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-    });
-    setSavingClient(false);
-    setClientId("");
-    setClientSecret("");
-    load();
-  }
-
-  function connect() {
-    const popup = window.open("/api/m/photos-drive/oauth/start", "google-oauth", "width=520,height=640");
-    const timer = setInterval(() => {
-      if (!popup || popup.closed) {
-        clearInterval(timer);
-        load();
-      }
-    }, 800);
-  }
 
   async function disconnect() {
     await fetch("/api/m/photos-drive/account", { method: "DELETE" });
@@ -470,52 +443,7 @@ function PhotosSettings({ instanceId, onClose }: SettingsProps) {
       <section className="flex flex-col gap-3">
         <div className="panel-label">Google Drive</div>
 
-        {!status.configured ? (
-          <div className="flex flex-col gap-2">
-            <p className="font-serif italic text-xs text-base-content/65">
-              Uses the shared hub OAuth client. Set{" "}
-              <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
-              <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in{" "}
-              <code className="font-mono">.env</code> and restart — or paste them below. Either way,
-              register this exact redirect URI:
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
-                {status.redirectUri}
-              </code>
-              <button
-                className="btn btn-xs btn-ghost"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(status.redirectUri);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <input
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="Client ID"
-              className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
-            />
-            <input
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              placeholder="Client secret"
-              type="password"
-              className="input input-sm border-base-content/10 bg-base-content/5 font-mono text-xs"
-            />
-            <button
-              className="btn btn-sm btn-primary self-start"
-              onClick={() => void saveClient()}
-              disabled={!clientId.trim() || !clientSecret.trim() || savingClient}
-            >
-              {savingClient ? "Saving…" : "Save client"}
-            </button>
-          </div>
-        ) : status.account ? (
+        {status.account ? (
           <div className="flex items-center gap-2 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5">
             <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
               {status.account.email}
@@ -525,31 +453,22 @@ function PhotosSettings({ instanceId, onClose }: SettingsProps) {
             </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            <p className="font-serif italic text-xs text-base-content/65">
-              First add this redirect URI to your Google Cloud OAuth client (APIs &amp; Services →
-              Credentials → your client → <span className="not-italic">Authorized redirect URIs</span>).
-              Each Google module has its own callback, so this is separate from the Calendar one.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded bg-base-content/5 px-2 py-1 font-mono text-[10px] text-base-content/70">
-                {status.redirectUri}
-              </code>
-              <button
-                className="btn btn-xs btn-ghost"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(status.redirectUri);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button className="btn btn-sm btn-primary self-start" onClick={connect}>
-              Connect Google Drive
-            </button>
-          </div>
+          <GoogleConnect
+            apiBase="/api/m/photos-drive"
+            configured={status.configured}
+            redirectUri={status.redirectUri}
+            onChanged={load}
+            connectLabel="Connect Google Drive"
+            intro={
+              <p className="font-serif italic text-xs text-base-content/65">
+                Uses the shared hub OAuth client. Set{" "}
+                <code className="font-mono">GOOGLE_CLIENT_ID</code> /{" "}
+                <code className="font-mono">GOOGLE_CLIENT_SECRET</code> in{" "}
+                <code className="font-mono">.env</code> and restart — or paste them below. Either way,
+                register this one redirect URI (shared by every Google module):
+              </p>
+            }
+          />
         )}
       </section>
 

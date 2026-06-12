@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hub/sdk": "workspace:*",
+    "@hub/google": "workspace:*",
     "node-ical": "^0.20.1"
   },
   "peerDependencies": {
