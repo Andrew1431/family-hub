@@ -105,7 +105,7 @@ function Slide({ id }: { id: string }) {
       src={photoUrl(id)}
       alt=""
       onLoad={reveal}
-      className={`absolute inset-0 h-full w-full transition-opacity duration-700 ${
+      className={`absolute inset-0 h-full w-full bg-black transition-opacity duration-700 ${
         portrait ? "object-contain" : "object-cover"
       } ${shown ? "opacity-100" : "opacity-0"}`}
     />
