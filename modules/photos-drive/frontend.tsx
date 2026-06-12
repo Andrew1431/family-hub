@@ -79,12 +79,18 @@ async function fetchPhotoConfig(): Promise<PhotoConfig> {
 /** One crossfading image layer; fades in once the bytes have loaded. */
 function Slide({ id }: { id: string }) {
   const [shown, setShown] = useState(false);
+  // Portrait photos get `contain` (black bars) so faces aren't cropped off;
+  // landscape fills the frame with `cover`. Decided from natural dimensions on
+  // load — default to `cover` until we know.
+  const [portrait, setPortrait] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
 
   // Defer the opacity flip two frames so the opacity-0 state actually paints
   // first — otherwise a preloaded (already-decoded) image skips the transition
   // and hard-cuts in. Double rAF guarantees a painted 0 frame to animate from.
   function reveal() {
+    const img = ref.current;
+    if (img && img.naturalHeight > img.naturalWidth) setPortrait(true);
     requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
   }
 
@@ -99,9 +105,9 @@ function Slide({ id }: { id: string }) {
       src={photoUrl(id)}
       alt=""
       onLoad={reveal}
-      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-        shown ? "opacity-100" : "opacity-0"
-      }`}
+      className={`absolute inset-0 h-full w-full transition-opacity duration-700 ${
+        portrait ? "object-contain" : "object-cover"
+      } ${shown ? "opacity-100" : "opacity-0"}`}
     />
   );
 }
