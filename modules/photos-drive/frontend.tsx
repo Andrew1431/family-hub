@@ -99,16 +99,23 @@ function Slide({ id }: { id: string }) {
     if (ref.current?.complete) reveal();
   }, []);
 
+  // Backdrop + fade live on the wrapping div (not the <img>): a div's black
+  // background reliably fills the `object-contain` letterbox and fully occludes
+  // the slide beneath, where background on the replaced <img> element does not.
   return (
-    <img
-      ref={ref}
-      src={photoUrl(id)}
-      alt=""
-      onLoad={reveal}
-      className={`absolute inset-0 h-full w-full bg-black transition-opacity duration-700 ${
-        portrait ? "object-contain" : "object-cover"
-      } ${shown ? "opacity-100" : "opacity-0"}`}
-    />
+    <div
+      className={`absolute inset-0 bg-black transition-opacity duration-700 ${
+        shown ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <img
+        ref={ref}
+        src={photoUrl(id)}
+        alt=""
+        onLoad={reveal}
+        className={`h-full w-full ${portrait ? "object-contain" : "object-cover"}`}
+      />
+    </div>
   );
 }
 
