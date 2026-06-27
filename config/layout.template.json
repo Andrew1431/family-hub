@@ -8,8 +8,8 @@
       "icon": "home",
       "label": "Home",
       "widgets": [
-        { "id": "clock-main", "module": "clock", "col": 1, "row": 1, "w": 4, "h": 1 },
-        { "id": "calendar-main", "module": "calendar-google", "col": 1, "row": 2, "w": 4, "h": 5, "settings": { "view": "summary" } },
+        { "id": "clock-main", "module": "clock", "col": 1, "row": 1, "w": 4, "h": 2 },
+        { "id": "calendar-main", "module": "calendar-google", "col": 1, "row": 3, "w": 4, "h": 4, "settings": { "view": "summary" } },
         { "id": "weather-main", "module": "weather", "col": 5, "row": 1, "w": 4, "h": 2 },
         { "id": "todo-main", "module": "todo-google", "col": 5, "row": 3, "w": 4, "h": 4 },
         { "id": "notes-main", "module": "notes", "col": 9, "row": 1, "w": 4, "h": 6 }

@@ -87,7 +87,7 @@ function NoteCard({
 
   return (
     <div
-      className="group/note relative flex h-full w-[clamp(240px,21vw,340px)] shrink-0 flex-col
+      className="group/note relative flex w-full shrink-0 flex-col
                  overflow-hidden rounded-2xl shadow-lg"
       style={{ backgroundColor: note.color, color: ink }}
     >
@@ -106,16 +106,19 @@ function NoteCard({
         </svg>
       </button>
 
-      {/* The note text — large, the whole point of the card. */}
+      {/* The note text — large, the whole point of the card. Grows with its
+          content (field-sizing) so the card sizes to the note and the column
+          scrolls vertically. */}
       <textarea
         value={note.text}
         onChange={(e) => onChangeText(e.target.value)}
         onBlur={onCommit}
         placeholder="Write a note…"
         spellCheck={false}
-        className="flex-1 resize-none bg-transparent px-5 pb-2 pt-12 font-serif
-                   text-[clamp(20px,2.1vw,30px)] leading-snug outline-none
-                   placeholder:opacity-40"
+        rows={2}
+        className="field-sizing-content min-h-[clamp(80px,12vh,140px)] resize-none bg-transparent
+                   px-5 pb-2 pt-12 font-serif text-[clamp(20px,2.1vw,30px)] leading-snug
+                   outline-none placeholder:opacity-40"
         style={{ color: ink, caretColor: ink }}
         aria-label="Note text"
       />
@@ -215,7 +218,7 @@ function NotesPanel(_props: PanelProps) {
     // Scroll the new card into view and focus it after it mounts.
     requestAnimationFrame(() => {
       const el = scrollRef.current;
-      if (el) el.scrollLeft = el.scrollWidth;
+      if (el) el.scrollTop = el.scrollHeight;
       const areas = el?.querySelectorAll("textarea");
       areas?.[areas.length - 1]?.focus();
     });
@@ -248,7 +251,7 @@ function NotesPanel(_props: PanelProps) {
           <span className="font-serif text-sm italic">Add your first note</span>
         </button>
       ) : (
-        <ScrollView ref={scrollRef} axis="x" className="flex flex-1 gap-4 pb-1 pr-16">
+        <ScrollView ref={scrollRef} axis="y" className="flex flex-1 flex-col gap-4 pb-20 pr-1">
           {notes.map((note) => (
             <NoteCard
               key={note.id}
