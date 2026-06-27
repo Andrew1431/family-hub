@@ -115,9 +115,9 @@ function NoteCard({
         onBlur={onCommit}
         placeholder="Write a note…"
         spellCheck={false}
-        rows={2}
-        className="field-sizing-content min-h-[clamp(80px,12vh,140px)] resize-none bg-transparent
-                   px-5 pb-2 pt-12 font-serif text-[clamp(20px,2.1vw,30px)] leading-snug
+        rows={1}
+        className="field-sizing-content min-h-[clamp(52px,7vh,88px)] resize-none bg-transparent
+                   px-5 pb-1 pt-4 font-serif text-[clamp(20px,2.1vw,30px)] leading-snug
                    outline-none placeholder:opacity-40"
         style={{ color: ink, caretColor: ink }}
         aria-label="Note text"
@@ -125,7 +125,7 @@ function NoteCard({
 
       {/* Colour controls — revealed on hover/focus so they don't clutter from a distance. */}
       <div
-        className="flex items-center gap-1.5 px-4 pb-3 pt-1 opacity-0 transition-opacity duration-150
+        className="flex items-center gap-1.5 px-4 pb-2 pt-0.5 opacity-0 transition-opacity duration-150
                    focus-within:opacity-100 group-hover/note:opacity-100"
       >
         {paletteOpen ? (
