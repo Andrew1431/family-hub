@@ -33,6 +33,7 @@
     "dev": "concurrently -n core,ui -c blue,magenta \"pnpm --filter @hub/core dev\" \"pnpm --filter @hub/ui dev\"",
     "build": "pnpm -r build",
     "start": "pnpm --filter @hub/core start",
+    "deploy": "ssh familyhub ~/.local/bin/familyhub-update.sh",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

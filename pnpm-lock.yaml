@@ -172,6 +172,9 @@ importers:
       '@fontsource/lora':
         specifier: ^5.1.0
         version: 5.2.8
+      '@hub/google':
+        specifier: workspace:*
+        version: link:../google
       '@hub/sdk':
         specifier: workspace:*
         version: link:../sdk

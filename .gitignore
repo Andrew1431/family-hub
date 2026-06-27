@@ -18,6 +18,11 @@ modules/*/config.local.json
 *.sqlite-journal
 data/
 
+# Personal/private Claude notes
+CLAUDE.local.md
+
 # Editor / OS
 .DS_Store
 .vscode/
+
+MOUNTING_PLAN.md
