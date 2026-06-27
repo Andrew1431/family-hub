@@ -26,6 +26,19 @@ export interface ResolvedEvent {
   calendarName: string;
   color: string;
   location?: string;
+  description?: string;
+}
+
+/** The small set of fields create/update accept (deliberately basic — no
+ *  recurrence, attendees, reminders). `allDay` switches start/end between a
+ *  timed `dateTime` (ISO) and an all-day `date` (YYYY-MM-DD; end is exclusive). */
+export interface EventFields {
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: string;
+  end?: string;
+  allDay?: boolean;
 }
 
 /** A calendar the user can choose to show, as stored in config (non-secret). */
@@ -79,6 +92,7 @@ interface RawGEvent {
   id: string;
   summary?: string;
   location?: string;
+  description?: string;
   status?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
@@ -113,6 +127,7 @@ function mapGEvent(it: RawGEvent, cal: GoogleCalendar): ResolvedEvent | null {
     calendarName: cal.name,
     color: cal.color,
     ...(it.location ? { location: it.location } : {}),
+    ...(it.description ? { description: it.description } : {}),
   };
 }
 
@@ -141,21 +156,75 @@ export async function fetchEvents(
     .filter((e): e is ResolvedEvent => e !== null);
 }
 
-/** Create a timed event. Basic by design: title + start + end only. */
+/** A start/end point in Google's shape: `date` (YYYY-MM-DD) for all-day,
+ *  `dateTime` (ISO) otherwise. All-day accepts a plain date or any ISO string. */
+function toGooglePoint(value: string, allDay: boolean): { date: string } | { dateTime: string } {
+  if (allDay) {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : new Date(value).toISOString().slice(0, 10);
+    return { date };
+  }
+  return { dateTime: new Date(value).toISOString() };
+}
+
+/** Build a Calendar event resource from the fields provided. Only set keys are
+ *  emitted, so the same builder serves create (full) and PATCH update (partial). */
+function buildEventBody(ev: EventFields): Record<string, unknown> {
+  const allDay = ev.allDay ?? false;
+  const body: Record<string, unknown> = {};
+  if (ev.summary !== undefined) body.summary = ev.summary;
+  if (ev.description !== undefined) body.description = ev.description;
+  if (ev.location !== undefined) body.location = ev.location;
+  if (ev.start !== undefined) body.start = toGooglePoint(ev.start, allDay);
+  if (ev.end !== undefined) body.end = toGooglePoint(ev.end, allDay);
+  return body;
+}
+
+/** Create an event. Basic by design: title + start/end (+ optional description,
+ *  location, all-day). No recurrence/attendees. */
 export async function insertEvent(
   accessToken: string,
   calendarId: string,
-  ev: { summary: string; start: string; end: string },
+  ev: EventFields,
 ): Promise<{ id: string; htmlLink?: string }> {
   const res = await fetch(`${API}/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      summary: ev.summary,
-      start: { dateTime: new Date(ev.start).toISOString() },
-      end: { dateTime: new Date(ev.end).toISOString() },
-    }),
+    body: JSON.stringify(buildEventBody(ev)),
   });
   if (!res.ok) throw new Error(`insert failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as { id: string; htmlLink?: string };
+}
+
+/** Patch an existing event (partial update — only the given fields change). */
+export async function patchEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+  ev: EventFields,
+): Promise<{ id: string; htmlLink?: string }> {
+  const res = await fetch(
+    `${API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(buildEventBody(ev)),
+    },
+  );
+  if (!res.ok) throw new Error(`update failed: ${res.status} ${await res.text()}`);
+  return (await res.json()) as { id: string; htmlLink?: string };
+}
+
+/** Delete an event. A 410 (already gone) is treated as success. */
+export async function deleteEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok && res.status !== 410) {
+    throw new Error(`delete failed: ${res.status} ${await res.text()}`);
+  }
 }

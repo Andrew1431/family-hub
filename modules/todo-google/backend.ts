@@ -456,6 +456,72 @@ export default defineBackend((ctx) => {
     },
   });
 
+  ctx.capabilities.register({
+    name: "todo_create_list_with_tasks",
+    description:
+      "Create a new to-do list and populate it with tasks in one step (e.g. 'make a " +
+      "camping list with tent, stove and sleeping bags'). Creates the list, then adds " +
+      "each task to it. Each result's `ok` says whether that task was added.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Name of the new list." },
+        tasks: {
+          type: "array",
+          description: "Tasks to add to the new list (one or more).",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "What the task is, e.g. 'Tent'." },
+              notes: { type: "string", description: "Optional extra details." },
+              due: { type: "string", description: "Optional due date as YYYY-MM-DD (date only)." },
+            },
+            required: ["title"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["title", "tasks"],
+      additionalProperties: false,
+    },
+    annotations: { requiresConfirmation: true },
+    handler: async (input: {
+      title: string;
+      tasks: Array<{ title: string; notes?: string; due?: string }>;
+    }) => {
+      try {
+        const title = input.title?.trim();
+        if (!title) return { ok: false, message: "List title is required." };
+        const tasks = Array.isArray(input.tasks) ? input.tasks : [];
+        const accounts = await getAccounts(ctx.config);
+        const acct = accounts[0];
+        if (!acct) return { ok: false, message: "No Google account connected." };
+        const token = await accessTokenFor(ctx.secrets, acct.id);
+        const created = await insertTaskList(token, title);
+        const results = [];
+        for (const t of tasks) {
+          if (!t?.title?.trim()) {
+            results.push({ ok: false, title: t?.title ?? "", message: "title is required" });
+            continue;
+          }
+          try {
+            const task = await insertTask(token, created.id, {
+              title: t.title.trim(),
+              ...(t.notes ? { notes: t.notes } : {}),
+              ...(t.due ? { due: t.due } : {}),
+            });
+            results.push({ ok: true, title: t.title, id: task.id });
+          } catch (err) {
+            results.push({ ok: false, title: t.title, message: err instanceof Error ? err.message : String(err) });
+          }
+        }
+        return { ok: results.every((r) => r.ok), list: created.title, listId: created.id, results };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
   // ── Panel routes ───────────────────────────────────────────────────────────
 
   ctx.route("GET", "/tasks", async () => ({

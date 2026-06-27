@@ -35,6 +35,9 @@ importers:
 
   modules/calendar-google:
     dependencies:
+      '@hub/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@hub/google':
         specifier: workspace:*
         version: link:../../packages/google
@@ -74,6 +77,9 @@ importers:
 
   modules/photos-drive:
     dependencies:
+      '@hub/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@hub/google':
         specifier: workspace:*
         version: link:../../packages/google
@@ -89,6 +95,9 @@ importers:
 
   modules/todo-google:
     dependencies:
+      '@hub/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@hub/google':
         specifier: workspace:*
         version: link:../../packages/google
@@ -113,6 +122,16 @@ importers:
       react:
         specifier: '>=18'
         version: 19.2.7
+
+  packages/components:
+    dependencies:
+      react:
+        specifier: '>=18'
+        version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
 
   packages/core:
     dependencies:
@@ -172,6 +191,9 @@ importers:
       '@fontsource/lora':
         specifier: ^5.1.0
         version: 5.2.8
+      '@hub/components':
+        specifier: workspace:*
+        version: link:../components
       '@hub/google':
         specifier: workspace:*
         version: link:../google

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ScrollView } from "@hub/components";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -139,7 +140,7 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Messages */}
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <ScrollView className="flex flex-1 flex-col gap-3 p-4">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -178,7 +179,7 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <div ref={bottomRef} />
-        </div>
+        </ScrollView>
 
         {/* Suggestions */}
         {messages.length <= 1 && (

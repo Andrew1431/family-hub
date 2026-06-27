@@ -8,10 +8,13 @@ import {
   revokeToken,
 } from "@hub/google";
 import {
+  deleteEvent,
   fetchCalendarList,
   fetchEvents,
   insertEvent,
+  patchEvent,
   SCOPES,
+  type EventFields,
   type GoogleAccount,
   type GoogleCalendar,
   type ResolvedEvent,
@@ -281,6 +284,40 @@ async function getWriteTarget(config: KVStore): Promise<WriteTarget | null> {
   return w && w.accountId && w.calendarId ? w : null;
 }
 
+// Panel/AI event ids are composite `calendarId:googleEventId` (see mapGEvent).
+// Calendar ids are emails / *.calendar.google.com and Google event ids never
+// contain a colon, so the last colon is the split. Returns null for ids that
+// don't map to a connected Google calendar (e.g. read-only ICS feed events).
+interface EventRef {
+  accountId: string;
+  calendarId: string;
+  eventId: string;
+}
+
+function resolveEventRef(accounts: GoogleAccount[], compositeId: string): EventRef | null {
+  const idx = compositeId.lastIndexOf(":");
+  if (idx <= 0) return null;
+  const calendarId = compositeId.slice(0, idx);
+  const eventId = compositeId.slice(idx + 1);
+  if (!eventId) return null;
+  const acct = accounts.find((a) => a.calendars.some((c) => c.id === calendarId));
+  return acct ? { accountId: acct.id, calendarId, eventId } : null;
+}
+
+// Add one day to an all-day date (Google's end.date is exclusive), preserving
+// the YYYY-MM-DD shape.
+function nextDay(dateStr: string): string {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? new Date(`${dateStr}T00:00:00Z`)
+    : new Date(dateStr);
+  base.setUTCDate(base.getUTCDate() + 1);
+  return base.toISOString().slice(0, 10);
+}
+
+const NOT_EDITABLE =
+  "That event isn't an editable Google calendar event (only events on connected, " +
+  "writable Google calendars can be changed — not read-only ICS subscriptions).";
+
 async function collectGoogleEvents(
   accounts: GoogleAccount[],
   secrets: KVStore,
@@ -344,6 +381,9 @@ export default defineBackend((ctx) => {
     start: string;
     end?: string;
     calendarId?: string;
+    description?: string;
+    location?: string;
+    allDay?: boolean;
   }): Promise<{ ok: boolean; id?: string; htmlLink?: string; message?: string }> {
     const accounts = await getAccounts(ctx.config);
     let target: WriteTarget | null = null;
@@ -360,15 +400,62 @@ export default defineBackend((ctx) => {
           "a write target in calendar settings first.",
       };
     }
+    const allDay = input.allDay ?? false;
     const end =
-      input.end ?? new Date(new Date(input.start).getTime() + 3_600_000).toISOString();
+      input.end ??
+      (allDay
+        ? nextDay(input.start)
+        : new Date(new Date(input.start).getTime() + 3_600_000).toISOString());
     const accessToken = await accessTokenFor(ctx.secrets, target.accountId);
     const created = await insertEvent(accessToken, target.calendarId, {
       summary: input.summary,
       start: input.start,
       end,
+      allDay,
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
     });
-    return { ok: true, id: created.id, ...(created.htmlLink ? { htmlLink: created.htmlLink } : {}) };
+    // Mirror mapGEvent's composite id so the returned id round-trips to update/delete.
+    return {
+      ok: true,
+      id: `${target.calendarId}:${created.id}`,
+      ...(created.htmlLink ? { htmlLink: created.htmlLink } : {}),
+    };
+  }
+
+  // Update an existing event in place. Only the provided fields change; identify
+  // the event by the composite id returned from listEvents/createEvent.
+  async function updateEvent(
+    input: { id: string } & EventFields,
+  ): Promise<{ ok: boolean; id?: string; htmlLink?: string; message?: string }> {
+    const accounts = await getAccounts(ctx.config);
+    const ref = resolveEventRef(accounts, input.id);
+    if (!ref) return { ok: false, message: NOT_EDITABLE };
+    const fields: EventFields = {
+      ...(input.summary !== undefined ? { summary: input.summary } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.location !== undefined ? { location: input.location } : {}),
+      ...(input.start !== undefined ? { start: input.start } : {}),
+      ...(input.end !== undefined ? { end: input.end } : {}),
+      ...(input.allDay !== undefined ? { allDay: input.allDay } : {}),
+    };
+    const accessToken = await accessTokenFor(ctx.secrets, ref.accountId);
+    const updated = await patchEvent(accessToken, ref.calendarId, ref.eventId, fields);
+    return {
+      ok: true,
+      id: `${ref.calendarId}:${updated.id}`,
+      ...(updated.htmlLink ? { htmlLink: updated.htmlLink } : {}),
+    };
+  }
+
+  // Delete an event by its composite id.
+  async function removeEvent(input: { id: string }): Promise<{ ok: boolean; message?: string }> {
+    const accounts = await getAccounts(ctx.config);
+    const ref = resolveEventRef(accounts, input.id);
+    if (!ref) return { ok: false, message: NOT_EDITABLE };
+    const accessToken = await accessTokenFor(ctx.secrets, ref.accountId);
+    await deleteEvent(accessToken, ref.calendarId, ref.eventId);
+    return { ok: true };
   }
 
   ctx.capabilities.register({
@@ -392,22 +479,110 @@ export default defineBackend((ctx) => {
   ctx.capabilities.register({
     name: "calendar_add_event",
     description:
-      "Add a basic event (title, start, end) to the family calendar's write " +
-      "target. For one-off events only — no recurrence.",
+      "Add a basic event to the family calendar's write target. For one-off " +
+      "events only — no recurrence. Returns the new event's `id`, which can be " +
+      "passed to calendar_update_event or calendar_delete_event.",
     inputSchema: {
       type: "object",
       properties: {
         summary: { type: "string", description: "Event title." },
-        start: { type: "string", description: "ISO 8601 start dateTime." },
-        end: { type: "string", description: "ISO 8601 end dateTime. Defaults to 1 hour after start." },
+        start: {
+          type: "string",
+          description: "ISO 8601 start dateTime, or YYYY-MM-DD when allDay is true.",
+        },
+        end: {
+          type: "string",
+          description:
+            "ISO 8601 end dateTime (or YYYY-MM-DD, exclusive, when allDay). " +
+            "Defaults to 1 hour after start (or the next day for all-day).",
+        },
+        description: { type: "string", description: "Notes / details for the event." },
+        location: { type: "string", description: "Event location." },
+        allDay: { type: "boolean", description: "Whether this is an all-day event." },
       },
       required: ["summary", "start"],
       additionalProperties: false,
     },
     annotations: { requiresConfirmation: true },
-    handler: async (input: { summary: string; start: string; end?: string }) => {
+    handler: async (input: {
+      summary: string;
+      start: string;
+      end?: string;
+      description?: string;
+      location?: string;
+      allDay?: boolean;
+    }) => {
       try {
         return await createEvent(input);
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
+  ctx.capabilities.register({
+    name: "calendar_update_event",
+    description:
+      "Update fields on an existing Google calendar event — title, description, " +
+      "location, start/end date-time, or all-day. Identify the event by the `id` " +
+      "from calendar_list_events. Only the fields you provide change; the rest are " +
+      "left as-is. Works only on writable Google calendars (not ICS subscriptions).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: 'Event id from calendar_list_events (e.g. "name@group.calendar.google.com:abc123").',
+        },
+        summary: { type: "string", description: "New title." },
+        description: { type: "string", description: "New notes / details." },
+        location: { type: "string", description: "New location." },
+        start: {
+          type: "string",
+          description: "New start: ISO 8601 dateTime, or YYYY-MM-DD when allDay is true.",
+        },
+        end: {
+          type: "string",
+          description: "New end: ISO 8601 dateTime, or YYYY-MM-DD (exclusive) when allDay is true.",
+        },
+        allDay: {
+          type: "boolean",
+          description:
+            "Whether the event is all-day. Set this together with start/end when " +
+            "switching an event between timed and all-day.",
+        },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    annotations: { requiresConfirmation: true },
+    handler: async (input: { id: string } & EventFields) => {
+      try {
+        return await updateEvent(input);
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  });
+
+  ctx.capabilities.register({
+    name: "calendar_delete_event",
+    description:
+      "Delete an event from a writable Google calendar, identified by its `id` " +
+      "from calendar_list_events. Irreversible. Works only on Google calendars " +
+      "(not ICS subscriptions).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Event id from calendar_list_events." },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    annotations: { requiresConfirmation: true },
+    handler: async (input: { id: string }) => {
+      try {
+        return await removeEvent(input);
       } catch (err) {
         return { ok: false, message: err instanceof Error ? err.message : String(err) };
       }
@@ -531,7 +706,15 @@ export default defineBackend((ctx) => {
   // Create a basic event from the panel's "+" form.
   ctx.route("POST", "/create", async ({ body }) => {
     const b = body as
-      | { summary?: string; start?: string; end?: string; calendarId?: string }
+      | {
+          summary?: string;
+          start?: string;
+          end?: string;
+          calendarId?: string;
+          description?: string;
+          location?: string;
+          allDay?: boolean;
+        }
       | undefined;
     if (!b?.summary || !b.start) return { ok: false, message: "summary and start are required" };
     try {
@@ -540,7 +723,40 @@ export default defineBackend((ctx) => {
         start: b.start,
         ...(b.end ? { end: b.end } : {}),
         ...(b.calendarId ? { calendarId: b.calendarId } : {}),
+        ...(b.description !== undefined ? { description: b.description } : {}),
+        ...(b.location !== undefined ? { location: b.location } : {}),
+        ...(b.allDay !== undefined ? { allDay: b.allDay } : {}),
       });
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // Update an existing event from the panel's edit form.
+  ctx.route("POST", "/update", async ({ body }) => {
+    const b = body as ({ id?: string } & EventFields) | undefined;
+    if (!b?.id) return { ok: false, message: "id is required" };
+    try {
+      return await updateEvent({
+        id: b.id,
+        ...(b.summary !== undefined ? { summary: b.summary } : {}),
+        ...(b.description !== undefined ? { description: b.description } : {}),
+        ...(b.location !== undefined ? { location: b.location } : {}),
+        ...(b.start !== undefined ? { start: b.start } : {}),
+        ...(b.end !== undefined ? { end: b.end } : {}),
+        ...(b.allDay !== undefined ? { allDay: b.allDay } : {}),
+      });
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // Delete an event from the panel's edit form.
+  ctx.route("POST", "/delete", async ({ body }) => {
+    const b = body as { id?: string } | undefined;
+    if (!b?.id) return { ok: false, message: "id is required" };
+    try {
+      return await removeEvent({ id: b.id });
     } catch (err) {
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
     }

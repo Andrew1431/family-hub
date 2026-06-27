@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { ScrollView } from "@hub/components";
 
 /**
  * Modal chrome owned by the shell: backdrop, centering, Esc-to-close, theme.
@@ -50,7 +51,7 @@ export function SettingsModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <ScrollView className="flex-1 p-4">{children}</ScrollView>
       </div>
 
       <style>{`@keyframes settingsPop { from { opacity:0; transform: translateY(16px) scale(0.97);} to { opacity:1; transform: translateY(0) scale(1);} }`}</style>

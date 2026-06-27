@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import { ScrollView } from "@hub/components";
 import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
@@ -183,11 +184,27 @@ function TodoPanel(_props: PanelProps) {
   const [due, setDue] = useState(todayStr());
   const [stackedAddId, setStackedAddId] = useState<string>("");
 
-  // Keep the selected tab valid as lists arrive/change.
+  // List chip helpers (tabs view): add-list modal + two-click delete guard.
+  const [addListOpen, setAddListOpen] = useState(false);
+  const [addListName, setAddListName] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string>("");
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tab to select once a freshly-created list shows up in the next fetch.
+  const pendingActivate = useRef<string | null>(null);
+
+  useEffect(() => () => { if (deleteTimer.current) clearTimeout(deleteTimer.current); }, []);
+
+  // Keep the selected tab valid as lists arrive/change; honour a pending switch
+  // to a just-created list once it appears.
   useEffect(() => {
-    setActiveId((prev) =>
-      prev && lists.some((l) => l.id === prev) ? prev : (lists[0]?.id ?? ""),
-    );
+    setActiveId((prev) => {
+      const pending = pendingActivate.current;
+      if (pending && lists.some((l) => l.id === pending)) {
+        pendingActivate.current = null;
+        return pending;
+      }
+      return prev && lists.some((l) => l.id === prev) ? prev : (lists[0]?.id ?? "");
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasksQuery.data]);
 
@@ -301,6 +318,37 @@ function TodoPanel(_props: PanelProps) {
     onSettled: settle,
   });
 
+  const createListMutation = useMutation({
+    mutationFn: async (title: string) => {
+      const res = await fetch(`${API}/lists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; id?: string; message?: string }
+        | null;
+      if (!res.ok || !data?.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.id) pendingActivate.current = data.id; // switch to it after refetch
+    },
+    onSettled: settle,
+  });
+
+  const deleteListMutation = useMutation({
+    mutationFn: (listId: string) =>
+      fetch(`${API}/lists/${encodeURIComponent(listId)}`, { method: "DELETE" }),
+    onMutate: async (listId) => {
+      const ctx = await beginOptimistic();
+      patchCache((prev) => ({ ...prev, lists: prev.lists.filter((l) => l.id !== listId) }));
+      return ctx;
+    },
+    onError: (_e, _v, ctx) => rollback(ctx),
+    onSettled: settle,
+  });
+
   function add() {
     const title = newTitle.trim();
     if (!title || !addListId) return;
@@ -315,6 +363,25 @@ function TodoPanel(_props: PanelProps) {
   }
   function switchView(mode: ViewMode) {
     viewMutation.mutate(mode);
+  }
+  function submitNewList() {
+    const title = addListName.trim();
+    if (!title || createListMutation.isPending) return;
+    createListMutation.mutate(title, {
+      onSuccess: () => { setAddListOpen(false); setAddListName(""); },
+    });
+  }
+  // First click on a chip's delete arms it (icon → checkmark); second confirms.
+  // Auto-disarms after a few seconds so a stray tap can't linger.
+  function armOrDeleteList(listId: string) {
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    if (pendingDeleteId === listId) {
+      setPendingDeleteId("");
+      deleteListMutation.mutate(listId);
+      return;
+    }
+    setPendingDeleteId(listId);
+    deleteTimer.current = setTimeout(() => setPendingDeleteId(""), 3000);
   }
 
   const remaining = lists.reduce(
@@ -408,24 +475,53 @@ function TodoPanel(_props: PanelProps) {
         </div>
       )}
 
-      {/* Tabs bar */}
-      {viewMode === "tabs" && lists.length > 1 && (
-        <div className="flex shrink-0 gap-1 overflow-x-auto">
-          {lists.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => setActiveId(l.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-colors ${
-                l.id === activeId ? "bg-base-content/10 text-base-content" : "text-base-content/65 hover:bg-base-content/5"
-              }`}
-            >
-              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
-              {l.title}
-              <span className="font-mono text-[10px] text-base-content/35">
-                ({l.tasks.filter((t) => t.status === "completed").length}/{l.tasks.length})
-              </span>
-            </button>
-          ))}
+      {/* Tabs bar — list chips, with a two-click delete and a + to add a list */}
+      {viewMode === "tabs" && lists.length >= 1 && (
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto">
+          {lists.map((l) => {
+            const selected = l.id === activeId;
+            const armed = pendingDeleteId === l.id;
+            return (
+              <div
+                key={l.id}
+                className={`flex shrink-0 items-center gap-1 rounded-full py-1.5 pl-3 pr-2 text-[13px] transition-colors ${
+                  selected ? "bg-base-content/10 text-base-content" : "text-base-content/65 hover:bg-base-content/5"
+                }`}
+              >
+                <button onClick={() => setActiveId(l.id)} className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
+                  {l.title}
+                  <span className="font-mono text-[10px] text-base-content/35">
+                    ({l.tasks.filter((t) => t.status === "completed").length}/{l.tasks.length})
+                  </span>
+                </button>
+                <button
+                  onClick={() => armOrDeleteList(l.id)}
+                  aria-label={armed ? `Confirm delete ${l.title}` : `Delete ${l.title}`}
+                  className={`grid h-4 w-4 place-items-center rounded-full transition-colors ${
+                    armed ? "text-success" : "text-base-content/30 hover:!text-error"
+                  }`}
+                >
+                  {armed ? (
+                    <svg width="11" height="11" viewBox="0 0 8 8" fill="none">
+                      <path d="M1.5 4L3.5 6L6.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    "✕"
+                  )}
+                </button>
+              </div>
+            );
+          })}
+          <button
+            onClick={() => { setAddListName(""); setAddListOpen(true); }}
+            aria-label="Add list"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-base-content/50 transition-colors hover:bg-base-content/5 hover:text-base-content"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -441,11 +537,11 @@ function TodoPanel(_props: PanelProps) {
           No lists yet. Open settings (hover the card, click the cog) to connect Google and add a list.
         </div>
       ) : viewMode === "tabs" ? (
-        <div className="flex-1 overflow-y-auto">
+        <ScrollView className="flex-1">
           {activeList && <ListTasks list={activeList} onToggle={(id, t) => void toggle(id, t)} onDelete={(id, tid) => void del(id, tid)} />}
-        </div>
+        </ScrollView>
       ) : (
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+        <ScrollView className="flex flex-1 flex-col gap-4">
           {lists.map((list) => (
             <div key={list.id}>
               <div className="mb-1.5 flex items-center gap-2">
@@ -458,6 +554,48 @@ function TodoPanel(_props: PanelProps) {
               <ListTasks list={list} onToggle={(id, t) => void toggle(id, t)} onDelete={(id, tid) => void del(id, tid)} />
             </div>
           ))}
+        </ScrollView>
+      )}
+
+      {/* Quick add-list modal */}
+      {addListOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          onClick={() => setAddListOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-xl border border-base-content/10 bg-base-100 p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="panel-label mb-2">New list</div>
+            <input
+              autoFocus
+              value={addListName}
+              onChange={(e) => setAddListName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNewList();
+                if (e.key === "Escape") setAddListOpen(false);
+              }}
+              placeholder="List name…"
+              className="input input-sm w-full border-base-content/10 bg-base-content/5"
+              aria-label="New list name"
+            />
+            {createListMutation.isError && (
+              <div className="mt-2 text-[11px] text-error/80">
+                {createListMutation.error instanceof Error ? createListMutation.error.message : "Couldn't create list"}
+              </div>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="btn btn-sm btn-ghost" onClick={() => setAddListOpen(false)}>Cancel</button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={submitNewList}
+                disabled={!addListName.trim() || createListMutation.isPending}
+              >
+                {createListMutation.isPending ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

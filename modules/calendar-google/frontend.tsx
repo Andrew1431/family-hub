@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import { ScrollView } from "@hub/components";
 import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
@@ -14,6 +15,7 @@ interface ResolvedEvent {
   calendarName: string;
   color: string;
   location?: string;
+  description?: string;
 }
 
 function formatTime(iso: string): string {
@@ -107,15 +109,15 @@ function ensureToday(groups: DayGroup[]): DayGroup[] {
   return [{ key, label: "Today", dateLabel: "", events: [] }, ...groups];
 }
 
-function EventRow({ event }: { event: ResolvedEvent }) {
-  return (
-    <div
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5"
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        borderLeft: `3px solid ${event.color}`,
-      }}
-    >
+function EventRow({
+  event,
+  onEdit,
+}: {
+  event: ResolvedEvent;
+  onEdit?: (event: ResolvedEvent) => void;
+}) {
+  const inner = (
+    <>
       <div className="flex-1 min-w-0">
         <div className="font-sans font-medium text-[clamp(14px,1.5vw,17px)] text-base-content truncate">
           {event.summary}
@@ -136,6 +138,28 @@ function EventRow({ event }: { event: ResolvedEvent }) {
       >
         {event.calendarName}
       </span>
+    </>
+  );
+  const style = {
+    background: "rgba(255,255,255,0.05)",
+    borderLeft: `3px solid ${event.color}`,
+  };
+  if (onEdit) {
+    return (
+      <button
+        type="button"
+        onClick={() => onEdit(event)}
+        aria-label={`Edit ${event.summary}`}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/[0.09]"
+        style={style}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={style}>
+      {inner}
     </div>
   );
 }
@@ -219,7 +243,7 @@ function Modal({
             ✕
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <ScrollView className="flex-1 p-4">{children}</ScrollView>
       </div>
     </div>
   );
@@ -250,24 +274,52 @@ function toIso(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString();
 }
 
-function AddEventModal({
+/** Local YYYY-MM-DD / HH:mm parts of an ISO instant (for prefilling the form). */
+function dateOf(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function timeOf(iso: string): string {
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** The day after a YYYY-MM-DD (Google's all-day end.date is exclusive). */
+function nextDayStr(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const dt = new Date(y!, (m ?? 1) - 1, (d ?? 1) + 1);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
+// Create or edit a basic event. With `event` set it edits in place (and offers
+// Delete); otherwise it creates on the chosen calendar. Fields are deliberately
+// basic: title, all-day toggle, date + start/end times, location, description.
+function EventModal({
   cals,
   writeTarget,
+  event,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   cals: WritableCalendar[];
   writeTarget: WriteTarget | null;
+  event?: ResolvedEvent;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
+  const editing = event !== undefined;
   const init = defaultDateTime();
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState(init.date);
-  const [start, setStart] = useState(init.start);
-  const [end, setEnd] = useState(init.end);
-  const [calendarId, setCalendarId] = useState(writeTarget?.calendarId ?? cals[0]?.id ?? "");
+  const [title, setTitle] = useState(event?.summary ?? "");
+  const [allDay, setAllDay] = useState(event?.allDay ?? false);
+  const [date, setDate] = useState(event ? dateOf(event.start) : init.date);
+  const [start, setStart] = useState(event && !event.allDay ? timeOf(event.start) : init.start);
+  const [end, setEnd] = useState(event && !event.allDay ? timeOf(event.end) : init.end);
+  const [location, setLocation] = useState(event?.location ?? "");
+  const [description, setDescription] = useState(event?.description ?? "");
+  const [calendarId, setCalendarId] = useState(
+    event?.calendarId ?? writeTarget?.calendarId ?? cals[0]?.id ?? "",
+  );
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
@@ -277,24 +329,35 @@ function AddEventModal({
     }
     setSaving(true);
     setError(null);
+    const timing = allDay
+      ? { start: date, end: nextDayStr(date), allDay: true }
+      : { start: toIso(date, start), end: toIso(date, end), allDay: false };
+    const payload = {
+      summary: title.trim(),
+      location: location.trim(),
+      description: description.trim(),
+      ...timing,
+    };
     try {
-      const res = await fetch("/api/m/calendar-google/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summary: title.trim(),
-          start: toIso(date, start),
-          end: toIso(date, end),
-          ...(calendarId ? { calendarId } : {}),
-        }),
-      });
+      const res = await fetch(
+        editing ? "/api/m/calendar-google/update" : "/api/m/calendar-google/create",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            editing
+              ? { id: event!.id, ...payload }
+              : { ...payload, ...(calendarId ? { calendarId } : {}) },
+          ),
+        },
+      );
       const result = (await res.json()) as { ok: boolean; message?: string };
       if (!result.ok) {
-        setError(result.message ?? "Could not create the event.");
+        setError(result.message ?? "Could not save the event.");
         setSaving(false);
         return;
       }
-      onCreated();
+      onSaved();
       onClose();
     } catch {
       setError("Network error.");
@@ -302,8 +365,34 @@ function AddEventModal({
     }
   }
 
+  async function del() {
+    if (!event) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/m/calendar-google/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: event.id }),
+      });
+      const result = (await res.json()) as { ok: boolean; message?: string };
+      if (!result.ok) {
+        setError(result.message ?? "Could not delete the event.");
+        setDeleting(false);
+        return;
+      }
+      onSaved();
+      onClose();
+    } catch {
+      setError("Network error.");
+      setDeleting(false);
+    }
+  }
+
+  const busy = saving || deleting;
+
   return (
-    <Modal title="New event" onClose={onClose}>
+    <Modal title={editing ? "Edit event" : "New event"} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="panel-label">Title</span>
@@ -315,6 +404,15 @@ function AddEventModal({
             className="input input-sm bg-base-content/5 border-base-content/10"
           />
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="toggle toggle-sm toggle-primary"
+            checked={allDay}
+            onChange={(e) => setAllDay(e.target.checked)}
+          />
+          <span className="panel-label">All day</span>
+        </label>
         <label className="flex flex-col gap-1">
           <span className="panel-label">Date</span>
           <input
@@ -324,27 +422,48 @@ function AddEventModal({
             className="input input-sm bg-base-content/5 border-base-content/10"
           />
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="panel-label">Start</span>
-            <input
-              type="time"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              className="input input-sm bg-base-content/5 border-base-content/10"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="panel-label">End</span>
-            <input
-              type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              className="input input-sm bg-base-content/5 border-base-content/10"
-            />
-          </label>
-        </div>
-        {cals.length > 1 && (
+        {!allDay && (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="panel-label">Start</span>
+              <input
+                type="time"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className="input input-sm bg-base-content/5 border-base-content/10"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="panel-label">End</span>
+              <input
+                type="time"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className="input input-sm bg-base-content/5 border-base-content/10"
+              />
+            </label>
+          </div>
+        )}
+        <label className="flex flex-col gap-1">
+          <span className="panel-label">Location</span>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Optional"
+            className="input input-sm bg-base-content/5 border-base-content/10"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="panel-label">Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional notes…"
+            rows={2}
+            className="textarea textarea-sm bg-base-content/5 border-base-content/10"
+          />
+        </label>
+        {!editing && cals.length > 1 && (
           <label className="flex flex-col gap-1">
             <span className="panel-label">Calendar</span>
             <select
@@ -361,13 +480,24 @@ function AddEventModal({
           </label>
         )}
         {error && <p className="font-serif italic text-xs text-error/80">{error}</p>}
-        <div className="flex justify-end gap-2 pt-1">
-          <button className="btn btn-sm btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={saving}>
-            {saving ? "Saving…" : "Add event"}
-          </button>
+        <div className="flex items-center gap-2 pt-1">
+          {editing && (
+            <button
+              className="btn btn-sm btn-ghost text-error/80 hover:bg-error/10 hover:text-error"
+              onClick={() => void del()}
+              disabled={busy}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          )}
+          <div className="ml-auto flex gap-2">
+            <button className="btn btn-sm btn-ghost" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={busy}>
+              {saving ? "Saving…" : editing ? "Save changes" : "Add event"}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -376,10 +506,18 @@ function AddEventModal({
 
 // ── Upcoming (summary) view: the original day-grouped agenda ──────────────────
 
-function UpcomingList({ events }: { events: ResolvedEvent[] }) {
+function UpcomingList({
+  events,
+  editableIds,
+  onEdit,
+}: {
+  events: ResolvedEvent[];
+  editableIds: Set<string>;
+  onEdit: (event: ResolvedEvent) => void;
+}) {
   const groups = ensureToday(groupByDay(events));
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+    <ScrollView className="flex min-h-0 flex-1 flex-col gap-4">
       {groups.map((g) => (
         <div key={g.key}>
           {g.label === "Today" ? (
@@ -402,13 +540,17 @@ function UpcomingList({ events }: { events: ResolvedEvent[] }) {
           ) : (
             <div className="flex flex-col gap-2">
               {g.events.map((ev) => (
-                <EventRow key={ev.id} event={ev} />
+                <EventRow
+                  key={ev.id}
+                  event={ev}
+                  {...(editableIds.has(ev.calendarId) ? { onEdit } : {})}
+                />
               ))}
             </div>
           )}
         </div>
       ))}
-    </div>
+    </ScrollView>
   );
 }
 
@@ -471,7 +613,17 @@ function MonthHeader({
   );
 }
 
-function MonthGrid({ events, anchor }: { events: ResolvedEvent[]; anchor: Date }) {
+function MonthGrid({
+  events,
+  anchor,
+  editableIds,
+  onEdit,
+}: {
+  events: ResolvedEvent[];
+  anchor: Date;
+  editableIds: Set<string>;
+  onEdit: (event: ResolvedEvent) => void;
+}) {
   const { from } = monthGridRange(anchor);
   const month = anchor.getMonth();
   const today = startOfDay(new Date()).getTime();
@@ -569,6 +721,8 @@ function MonthGrid({ events, anchor }: { events: ResolvedEvent[]; anchor: Date }
         <DayModal
           day={openDay}
           events={byDay.get(localKey(openDay)) ?? []}
+          editableIds={editableIds}
+          onEdit={onEdit}
           onClose={() => setOpenDay(null)}
         />
       )}
@@ -580,10 +734,14 @@ function MonthGrid({ events, anchor }: { events: ResolvedEvent[]; anchor: Date }
 function DayModal({
   day,
   events,
+  editableIds,
+  onEdit,
   onClose,
 }: {
   day: Date;
   events: ResolvedEvent[];
+  editableIds: Set<string>;
+  onEdit: (event: ResolvedEvent) => void;
   onClose: () => void;
 }) {
   const title = day.toLocaleDateString("en-US", {
@@ -600,7 +758,11 @@ function DayModal({
       ) : (
         <div className="flex flex-col gap-2">
           {events.map((ev) => (
-            <EventRow key={ev.id} event={ev} />
+            <EventRow
+              key={ev.id}
+              event={ev}
+              {...(editableIds.has(ev.calendarId) ? { onEdit } : {})}
+            />
           ))}
         </div>
       )}
@@ -611,6 +773,7 @@ function DayModal({
 function CalendarPanel(props: PanelProps) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ResolvedEvent | null>(null);
   const view = props.settings.view === "month" ? "month" : "summary";
   // Anchor for month navigation: any date within the displayed month.
   const [anchor, setAnchor] = useState(() => new Date());
@@ -660,6 +823,10 @@ function CalendarPanel(props: PanelProps) {
   const cals = statusQuery.data ? writableCalendars(statusQuery.data.accounts) : [];
   const writeTarget = statusQuery.data?.writeTarget ?? null;
   const canWrite = cals.length > 0;
+  // Events on these calendars can be edited/deleted in place; ICS feed events can't.
+  const editableIds = new Set(cals.map((c) => c.id));
+  const refreshEvents = () =>
+    void qc.invalidateQueries({ queryKey: ["calendar", "events"] });
 
   return (
     <div className="flex flex-col gap-3.5 h-full overflow-hidden p-1">
@@ -700,17 +867,27 @@ function CalendarPanel(props: PanelProps) {
       {!loading &&
         error === null &&
         (view === "month" ? (
-          <MonthGrid events={events} anchor={anchor} />
+          <MonthGrid events={events} anchor={anchor} editableIds={editableIds} onEdit={setEditing} />
         ) : (
-          <UpcomingList events={events} />
+          <UpcomingList events={events} editableIds={editableIds} onEdit={setEditing} />
         ))}
 
       {adding && (
-        <AddEventModal
+        <EventModal
           cals={cals}
           writeTarget={writeTarget}
           onClose={() => setAdding(false)}
-          onCreated={() => void qc.invalidateQueries({ queryKey: ["calendar", "events"] })}
+          onSaved={refreshEvents}
+        />
+      )}
+
+      {editing && (
+        <EventModal
+          cals={cals}
+          writeTarget={writeTarget}
+          event={editing}
+          onClose={() => setEditing(null)}
+          onSaved={refreshEvents}
         />
       )}
     </div>

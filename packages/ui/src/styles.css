@@ -4,6 +4,9 @@
    automatic content detection misses them. Without this, any daisyUI/utility
    class used only inside a module (input, btn, paddings…) is never generated. */
 @source "../../../modules";
+/* Shared component primitives (@hub/components) also live outside this package;
+   scan their source so classes used only inside them (overflow-*, …) generate. */
+@source "../../../packages/components/src";
 
 /* Self-hosted fonts — no network needed (the mirror may be offline). */
 @import "@fontsource/dm-sans/400.css";

@@ -7,6 +7,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@hub/components": "workspace:*",
     "@hub/sdk": "workspace:*",
     "@hub/google": "workspace:*",
     "node-ical": "^0.20.1"

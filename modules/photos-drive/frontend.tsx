@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps, type OverlayProps } from "@hub/sdk";
+import { ScrollView } from "@hub/components";
 import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
@@ -362,7 +363,8 @@ function FolderPicker({
       ) : entries.length === 0 ? (
         <p className="font-serif italic text-xs text-base-content/55">No sub-folders here.</p>
       ) : (
-        <ul className="flex max-h-44 flex-col gap-1 overflow-y-auto">
+        <ScrollView className="max-h-44">
+          <ul className="flex flex-col gap-1">
           {entries.map((f) => (
             <li key={f.id} className="flex items-center gap-2">
               <button
@@ -381,7 +383,8 @@ function FolderPicker({
               </button>
             </li>
           ))}
-        </ul>
+          </ul>
+        </ScrollView>
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-base-content/10 pt-2">
