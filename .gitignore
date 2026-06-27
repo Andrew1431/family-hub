@@ -24,6 +24,7 @@ modules/*
 !modules/calendar-google/
 !modules/clock/
 !modules/google-oauth/
+!modules/notes/
 !modules/photos-drive/
 !modules/todo-google/
 !modules/weather/

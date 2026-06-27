@@ -1,0 +1,4 @@
+{
+  "$comment": "Plain notes module. `notes` is the full ordered list of cards ({ id, text, color }); the panel reads/writes it through the generic /config endpoint, so this stays empty and the live data is a DB override.",
+  "notes": []
+}
