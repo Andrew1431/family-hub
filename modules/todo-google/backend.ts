@@ -146,7 +146,11 @@ export default defineBackend((ctx) => {
     listId?: string;
     listName?: string;
   }): Promise<(DefaultList & { title: string }) | null> {
-    const accounts = await getAccounts(ctx.config);
+    // Resolve live so lists created after connect (or in the Tasks app) — which
+    // the panel shows but stored config doesn't yet hold — are valid add targets.
+    // Without this, an explicit listId for such a list misses and silently falls
+    // through to the default list.
+    const accounts = await resolveAccounts(await getAccounts(ctx.config), ctx.secrets, ctx.log);
     const titleOf = (accountId: string, listId: string) =>
       accounts.find((a) => a.id === accountId)?.lists.find((l) => l.id === listId)?.title ?? "";
 
@@ -168,8 +172,12 @@ export default defineBackend((ctx) => {
       // Named list not found — fall through to the default rather than failing.
     }
 
+    // Use the stored default only if it still exists live — a list deleted in
+    // the Tasks app would otherwise route quick-adds to a dead id (Google 404s).
     const def = await getDefaultList(ctx.config);
-    if (def) return { ...def, title: titleOf(def.accountId, def.listId) };
+    if (def && accounts.some((a) => a.id === def.accountId && a.lists.some((l) => l.id === def.listId))) {
+      return { ...def, title: titleOf(def.accountId, def.listId) };
+    }
     for (const acct of accounts) {
       const first = acct.lists.find((l) => l.enabled);
       if (first) return { accountId: acct.id, listId: first.id, title: first.title };
@@ -177,9 +185,11 @@ export default defineBackend((ctx) => {
     return null;
   }
 
-  // Find which account owns a given list id.
+  // Find which account owns a given list id. Resolve live so lists not yet in
+  // stored config (created in-panel or in the Tasks app) are found — otherwise
+  // task delete / list rename·delete on such a list would 404 "List not found".
   async function locateList(listId: string): Promise<string | null> {
-    const accounts = await getAccounts(ctx.config);
+    const accounts = await resolveAccounts(await getAccounts(ctx.config), ctx.secrets, ctx.log);
     return accounts.find((a) => a.lists.some((l) => l.id === listId))?.id ?? null;
   }
 
