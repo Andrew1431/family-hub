@@ -35,6 +35,26 @@ export default function App() {
       .catch((e) => setError(String(e)));
   }, []);
 
+  // Digit keys 1–9 and 0 switch dashboards (1=first, …, 9=ninth, 0=tenth).
+  useEffect(() => {
+    if (!layout) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.key.match(/^[0-9]$/)) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (chatOpen || settingsOpen) return;
+      const idx = e.key === "0" ? 9 : Number(e.key) - 1;
+      const target = layout.dashboards[idx];
+      if (target) {
+        e.preventDefault();
+        setActiveId(target.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [layout, chatOpen, settingsOpen]);
+
   // Spacebar opens the assistant — but never while typing in a field, and not
   // when the assistant is disabled.
   useEffect(() => {
