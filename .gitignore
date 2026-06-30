@@ -1,7 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
-
+hub.log
 # Lockfile intentionally untracked: private/external modules dropped into
 # modules/ would otherwise churn it on every install. Personal project — we
 # accept losing pinned-tree reproducibility for clones/CI.
