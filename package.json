@@ -34,6 +34,7 @@
     "build": "pnpm -r build",
     "start": "pnpm --filter @hub/core start",
     "deploy": "ssh familyhub ~/.local/bin/familyhub-update.sh",
+    "deploy:local": "pnpm build && systemctl --user restart familyhub",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

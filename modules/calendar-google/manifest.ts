@@ -15,6 +15,7 @@ export const manifest: ModuleManifest = {
     clientId: "GOOGLE_CLIENT_ID",
     clientSecret: "GOOGLE_CLIENT_SECRET",
   },
+  hotkey: "c",
 };
 
 export default manifest;

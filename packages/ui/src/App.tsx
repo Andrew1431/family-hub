@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ModuleManifest, LayoutConfig } from "@hub/sdk";
 import { fetchModules, fetchLayout, fetchConfig, type HubConfig } from "./lib/api";
 import { DashboardGrid } from "./components/DashboardGrid";
@@ -8,6 +8,7 @@ import { ChatModal } from "./components/ChatModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { HubSettings } from "./components/HubSettings";
 import { OverlayHost } from "./components/OverlayHost";
+import { HotkeyProvider } from "@hub/components";
 
 export default function App() {
   const [modules, setModules] = useState<ModuleManifest[] | null>(null);
@@ -17,6 +18,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeId, setActiveId] = useState<string>("");
+  const [overlayActive, setOverlayActive] = useState(false);
 
   const showAssistant = config?.showAssistant !== false; // default on for older configs
   const showOrb = config?.showOrb !== false; // default on; only meaningful when showAssistant
@@ -49,6 +51,32 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatOpen, showAssistant]);
 
+  // These useMemo calls must live before any conditional return — hooks must be
+  // called the same number of times on every render.
+  const moduleMap = useMemo(
+    () => (modules ? Object.fromEntries(modules.map((m) => [m.name, m])) : {}),
+    [modules],
+  );
+  const activeDashboard =
+    layout?.dashboards.find((d) => d.id === activeId) ?? layout?.dashboards[0];
+  const resolvedHotkeys = useMemo(() => {
+    if (!activeDashboard) return {};
+    const result: Record<string, string> = {};
+    const seen = new Set<string>();
+    for (const w of activeDashboard.widgets) {
+      const hotkey = moduleMap[w.module]?.hotkey;
+      if (!hotkey) continue;
+      const key = hotkey.toLowerCase();
+      if (seen.has(key)) {
+        console.warn(`[HotkeyProvider] hotkey collision on "${key}" — skipping widget "${w.id}"`);
+        continue;
+      }
+      seen.add(key);
+      result[w.id] = key;
+    }
+    return result;
+  }, [activeDashboard, moduleMap]);
+
   if (error) {
     return (
       <div className="grid h-full place-items-center p-8 text-center">
@@ -71,8 +99,9 @@ export default function App() {
     );
   }
 
-  const moduleMap = Object.fromEntries(modules.map((m) => [m.name, m]));
-  const active = layout.dashboards.find((d) => d.id === activeId) ?? layout.dashboards[0];
+  // After the null guards above, layout/modules/config are non-null.
+  // activeDashboard is guaranteed non-null once layout is loaded (dashboards[0] fallback).
+  const active = activeDashboard ?? layout.dashboards[0];
 
   return (
     <div className="relative flex h-full flex-col gap-[clamp(16px,2.5vw,28px)] overflow-hidden p-[clamp(20px,4vw,48px)]">
@@ -93,13 +122,15 @@ export default function App() {
       </button>
 
       <Header dashboards={layout.dashboards} activeId={active?.id ?? ""} onSelect={setActiveId} />
-      {active && (
-        <DashboardGrid
-          dashboard={active}
-          modules={moduleMap}
-          defaults={{ columns: layout.columns, ...(layout.rows ? { rows: layout.rows } : {}) }}
-        />
-      )}
+      <HotkeyProvider hotkeys={resolvedHotkeys} enabled={!overlayActive && !chatOpen}>
+        {active && (
+          <DashboardGrid
+            dashboard={active}
+            modules={moduleMap}
+            defaults={{ columns: layout.columns, ...(layout.rows ? { rows: layout.rows } : {}) }}
+          />
+        )}
+      </HotkeyProvider>
       {showAssistant && showOrb && (
         <footer className="flex justify-center">
           <AssistantOrb onClick={() => setChatOpen(true)} />
@@ -113,7 +144,7 @@ export default function App() {
       )}
       {/* Full-screen module overlays (e.g. the photos screensaver). Each decides
           when to show based on the global idle signal. */}
-      <OverlayHost modules={modules} />
+      <OverlayHost modules={modules} onActiveChange={setOverlayActive} />
     </div>
   );
 }

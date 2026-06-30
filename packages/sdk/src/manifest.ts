@@ -41,4 +41,9 @@ export interface ModuleManifest {
    * ctx.secrets resolves `HUB_<MODULE>_<KEY>` first, then this alias, then the store.
    */
   secretEnv?: Record<string, string>;
+  /**
+   * Single-key shortcut to focus this module from idle. Case-insensitive, one character.
+   * `Space` is reserved for the assistant and will be rejected. Opt-in — interactive modules only.
+   */
+  hotkey?: string;
 }

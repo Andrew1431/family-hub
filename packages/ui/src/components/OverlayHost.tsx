@@ -13,10 +13,19 @@ import { moduleFrontends } from "../modules.generated";
  * we swallow it in the capture phase so it can't also fire a global shortcut
  * (e.g. the assistant key) or land as a click on the dashboard underneath.
  */
-export function OverlayHost({ modules }: { modules: ModuleManifest[] }) {
+export function OverlayHost({
+  modules,
+  onActiveChange,
+}: {
+  modules: ModuleManifest[];
+  /** Called whenever the "any overlay active" state flips. */
+  onActiveChange?: (anyActive: boolean) => void;
+}) {
   const [idleMs, setIdleMs] = useState(0);
   const lastActivity = useRef(Date.now());
   const activeNames = useRef(new Set<string>());
+  const onActiveChangeRef = useRef(onActiveChange);
+  onActiveChangeRef.current = onActiveChange;
 
   // Stable per-module setters so an overlay's effect deps don't churn each tick.
   const setters = useRef(new Map<string, (active: boolean) => void>());
@@ -24,8 +33,11 @@ export function OverlayHost({ modules }: { modules: ModuleManifest[] }) {
     let s = setters.current.get(name);
     if (!s) {
       s = (active: boolean) => {
+        const was = activeNames.current.size > 0;
         if (active) activeNames.current.add(name);
         else activeNames.current.delete(name);
+        const now = activeNames.current.size > 0;
+        if (now !== was) onActiveChangeRef.current?.(now);
       };
       setters.current.set(name, s);
     }

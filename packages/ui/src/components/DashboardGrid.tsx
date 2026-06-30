@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ModuleManifest, DashboardConfig, WidgetInstance } from "@hub/sdk";
 import { moduleFrontends } from "../modules.generated";
 import { SettingsModal } from "./SettingsModal";
+import { Card } from "@hub/components";
 
 function span(start: number | undefined, length: number): string {
   return start ? `${start} / span ${length}` : `span ${length}`;
@@ -46,12 +47,11 @@ export function DashboardGrid({
         const hasSettings = Boolean(entry?.Settings);
         const settings = w.settings ?? {};
         return (
-          <section
+          <Card
             key={w.id}
-            className={
-              (bare ? "" : "panel p-[clamp(14px,1.6vw,22px)] ") +
-              "group relative flex flex-col min-h-0 overflow-hidden"
-            }
+            instanceId={w.id}
+            {...(manifest?.hotkey ? { hotkey: manifest.hotkey } : {})}
+            surface={bare ? "bare" : "panel"}
             style={{ gridColumn: span(w.col, w.w), gridRow: span(w.row, w.h) }}
           >
             {/* Settings cog — only for modules that define Settings, and only
@@ -78,7 +78,7 @@ export function DashboardGrid({
             ) : (
               <div className="panel-label">{manifest?.title ?? w.module} — no frontend loaded</div>
             )}
-          </section>
+          </Card>
         );
       })}
 

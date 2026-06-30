@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { defineModule, type PanelProps } from "@hub/sdk";
-import { ScrollView } from "@hub/components";
+import { ScrollView, Title, useModuleHotkeys } from "@hub/components";
 import { manifest } from "./manifest";
 
 /*
@@ -112,7 +112,7 @@ function NoteCard({
       <textarea
         value={note.text}
         onChange={(e) => onChangeText(e.target.value)}
-        onBlur={onCommit}
+        onBlur={() => note.text.trim() === "" ? onDelete() : onCommit()}
         placeholder="Write a note…"
         spellCheck={false}
         rows={1}
@@ -224,6 +224,10 @@ function NotesPanel(_props: PanelProps) {
     });
   }
 
+  // "N" from idle: focuses this card AND immediately creates a new note.
+  // "N" while already focused: creates another note.
+  useModuleHotkeys({ n: addNote });
+
   if (notes === null) {
     return (
       <div className="grid h-full place-items-center">
@@ -238,7 +242,7 @@ function NotesPanel(_props: PanelProps) {
 
   return (
     <div className="relative flex h-full flex-col">
-      <span className="panel-label mb-2 shrink-0">Notes</span>
+      <Title className="mb-2 shrink-0">Notes</Title>
 
       {notes.length === 0 ? (
         <button

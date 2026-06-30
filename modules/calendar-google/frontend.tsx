@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
-import { ScrollView } from "@hub/components";
+import { ScrollView, Title, useModuleHotkeys } from "@hub/components";
 import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
@@ -828,6 +828,8 @@ function CalendarPanel(props: PanelProps) {
   const refreshEvents = () =>
     void qc.invalidateQueries({ queryKey: ["calendar", "events"] });
 
+  useModuleHotkeys({ a: () => setAdding(true) });
+
   return (
     <div className="flex flex-col gap-3.5 h-full overflow-hidden p-1">
       <div className="flex shrink-0 items-center justify-between gap-2">
@@ -839,7 +841,7 @@ function CalendarPanel(props: PanelProps) {
             onToday={() => setAnchor(new Date())}
           />
         ) : (
-          <span className="panel-label">Calendar</span>
+          <Title>Calendar</Title>
         )}
         {canWrite && (
           <button

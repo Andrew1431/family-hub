@@ -65,3 +65,49 @@ body {
   text-transform: uppercase;
   color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
 }
+
+/* Pulsing glow applied to a focused card. Animate only box-shadow (cheap) —
+   no blur()/backdrop-filter which is the documented worst performer on Pi Chromium. */
+@keyframes hub-card-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
+      0 0 12px color-mix(in oklab, var(--color-primary) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-primary) 55%, transparent),
+      0 0 22px color-mix(in oklab, var(--color-primary) 32%, transparent);
+  }
+}
+
+.panel[data-focused="true"] {
+  animation: hub-card-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel[data-focused="true"] {
+    animation: none;
+    box-shadow: 0 0 0 1px var(--color-primary);
+  }
+}
+
+/* Hotkey hint badge shown next to card titles (e.g. "CALENDAR C").
+   Dim by default, brightens when the card is focused. */
+@utility hotkey-hint {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.25em;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 18%, transparent);
+  background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
+  color: color-mix(in oklab, var(--color-base-content) 35%, transparent);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.hotkey-hint[data-focused="true"] {
+  color: var(--color-primary);
+  border-color: color-mix(in oklab, var(--color-primary) 50%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
+}

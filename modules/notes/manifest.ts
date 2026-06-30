@@ -9,6 +9,7 @@ export const manifest: ModuleManifest = {
   hasBackend: false,
   hasFrontend: true,
   // surface defaults to "panel" — the frosted column the colored cards live in.
+  hotkey: "n",
 };
 
 export default manifest;

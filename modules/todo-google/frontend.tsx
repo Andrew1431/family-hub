@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
-import { ScrollView } from "@hub/components";
+import { ScrollView, Title, useModuleHotkeys } from "@hub/components";
 import { GoogleConnect } from "@hub/google/connect";
 import { manifest } from "./manifest";
 
@@ -183,6 +183,9 @@ function TodoPanel(_props: PanelProps) {
   const [showDue, setShowDue] = useState(false);
   const [due, setDue] = useState(todayStr());
   const [stackedAddId, setStackedAddId] = useState<string>("");
+
+  const addInputRef = useRef<HTMLInputElement>(null);
+  useModuleHotkeys({ a: () => addInputRef.current?.focus() });
 
   // List chip helpers (tabs view): add-list modal + two-click delete guard.
   const [addListOpen, setAddListOpen] = useState(false);
@@ -395,7 +398,7 @@ function TodoPanel(_props: PanelProps) {
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="panel-label">To-Do</span>
+          <Title>To-Do</Title>
           <button
             onClick={() => void tasksQuery.refetch()}
             disabled={refreshing}
@@ -443,6 +446,7 @@ function TodoPanel(_props: PanelProps) {
               </select>
             )}
             <input
+              ref={addInputRef}
               className="input input-sm flex-1 border-base-content/10 bg-base-content/5 text-sm placeholder:text-base-content/35"
               placeholder="Add a task…"
               value={newTitle}
