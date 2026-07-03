@@ -8,7 +8,8 @@ import { ChatModal } from "./components/ChatModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { HubSettings } from "./components/HubSettings";
 import { OverlayHost } from "./components/OverlayHost";
-import { HotkeyProvider } from "@hub/components";
+import { HotkeyProvider, IconButton, IconGear } from "@hub/components";
+import { useTheme } from "./lib/useTheme";
 
 export default function App() {
   const [modules, setModules] = useState<ModuleManifest[] | null>(null);
@@ -30,10 +31,12 @@ export default function App() {
         setLayout(l);
         setConfig(c);
         setActiveId(l.dashboards[0]?.id ?? "");
-        if (c.theme) document.documentElement.dataset.theme = c.theme;
       })
       .catch((e) => setError(String(e)));
   }, []);
+
+  // Applies data-theme; in auto mode re-checks the wall clock each half-minute.
+  useTheme(config);
 
   // Digit keys 1–9 and 0 switch dashboards (1=first, …, 9=ninth, 0=tenth).
   useEffect(() => {
@@ -127,19 +130,14 @@ export default function App() {
     <div className="relative flex h-full flex-col gap-[clamp(16px,2.5vw,28px)] overflow-hidden p-[clamp(20px,4vw,48px)]">
       {/* Hub settings — dim corner gear, brightens on hover/focus (kept subtle for
           a wall display). Opens the shell SettingsModal with app-level toggles. */}
-      <button
-        type="button"
+      <IconButton
+        label="Hub settings"
+        size="lg"
         onClick={() => setSettingsOpen(true)}
-        aria-label="Hub settings"
-        className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-lg
-                   text-base-content/25 transition-colors duration-150
-                   hover:bg-base-content/10 hover:text-base-content/70 focus-visible:text-base-content/70"
+        className="absolute right-3 top-3 z-20 !text-base-content/25 hover:!text-base-content/70 focus-visible:!text-base-content/70"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      </button>
+        <IconGear size={16} />
+      </IconButton>
 
       <Header dashboards={layout.dashboards} activeId={active?.id ?? ""} onSelect={setActiveId} />
       <HotkeyProvider hotkeys={resolvedHotkeys} enabled={!overlayActive && !chatOpen}>

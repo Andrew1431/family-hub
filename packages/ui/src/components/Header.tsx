@@ -15,11 +15,7 @@ export function Header({
   if (!show || dashboards.length < 2) return null;
   return (
     <header className="flex items-center justify-start">
-      <nav
-        role="tablist"
-        aria-label="Dashboards"
-        className="flex items-center gap-5"
-      >
+      <nav role="tablist" aria-label="Dashboards" className="flex items-center gap-4">
         {dashboards.map((d) => {
           const active = d.id === activeId;
           return (
@@ -31,13 +27,20 @@ export function Header({
               aria-label={d.label ?? d.id}
               title={d.label ?? d.id}
               onClick={() => onSelect(d.id)}
-              className={`grid h-14 w-14 place-items-center transition-all ${
+              className={`relative grid h-14 w-14 place-items-center rounded-2xl transition-colors duration-150 ${
                 active
-                  ? "text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.55)]"
-                  : "text-base-content/40 hover:text-base-content/70"
+                  ? "bg-primary/12 text-primary"
+                  : "text-base-content/40 hover:bg-base-content/5 hover:text-base-content/70"
               }`}
             >
-              <DashboardIcon name={d.icon} size={34} />
+              <DashboardIcon name={d.icon} size={30} />
+              {/* Active marker: a small ember under the icon. */}
+              <span
+                aria-hidden
+                className={`absolute bottom-1.5 h-1 w-1 rounded-full bg-primary transition-opacity ${
+                  active ? "opacity-100" : "opacity-0"
+                }`}
+              />
             </button>
           );
         })}

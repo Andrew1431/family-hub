@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import {
+  FormFooter,
+  LoadingState,
+  Segmented,
+  ToggleRow,
+  useConfigDraft,
+  useModuleConfig,
+} from "@hub/components";
 import { manifest } from "./manifest";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -16,12 +23,6 @@ interface ClockConfig {
 
 const DEFAULTS: ClockConfig = { showSeconds: true, hour12: true };
 
-async function fetchClockConfig(): Promise<ClockConfig> {
-  const r = await fetch("/api/m/clock/config");
-  if (!r.ok) throw new Error(r.statusText);
-  return r.json() as Promise<ClockConfig>;
-}
-
 function ClockPanel(_props: PanelProps) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -29,9 +30,7 @@ function ClockPanel(_props: PanelProps) {
     return () => clearInterval(t);
   }, []);
 
-  const { data } = useQuery({ queryKey: ["clock", "config"], queryFn: fetchClockConfig });
-  const showSeconds = data?.showSeconds ?? DEFAULTS.showSeconds;
-  const hour12 = data?.hour12 ?? DEFAULTS.hour12;
+  const { showSeconds, hour12 } = useModuleConfig("clock", DEFAULTS);
 
   const h24 = now.getHours();
   const hr = hour12 ? h24 % 12 || 12 : String(h24).padStart(2, "0");
@@ -50,7 +49,7 @@ function ClockPanel(_props: PanelProps) {
         </span>
         {(showSeconds || hour12) && (
           <span
-            className="font-mono font-light text-base-content/70 pb-[0.12em]"
+            className="pb-[0.12em] font-mono font-light text-base-content/70"
             style={{ fontSize: "clamp(20px, 3.2vw, 40px)" }}
           >
             {showSeconds && s}
@@ -71,73 +70,35 @@ function ClockPanel(_props: PanelProps) {
 }
 
 function ClockSettings({ onClose }: SettingsProps) {
-  const qc = useQueryClient();
-  const [cfg, setCfg] = useState<ClockConfig | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { draft, patch, save, saving } = useConfigDraft("clock", DEFAULTS);
 
-  useEffect(() => {
-    fetchClockConfig()
-      .then(setCfg)
-      .catch(() => setCfg(DEFAULTS));
-  }, []);
-
-  async function save() {
-    if (!cfg) return;
-    setSaving(true);
-    await fetch("/api/m/clock/config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ showSeconds: cfg.showSeconds, hour12: cfg.hour12 }),
-    });
-    setSaving(false);
-    void qc.invalidateQueries({ queryKey: ["clock", "config"] });
-    onClose();
-  }
-
-  if (!cfg) {
-    return (
-      <div className="grid place-items-center py-8">
-        <span className="loading loading-spinner text-base-content/40" />
-      </div>
-    );
-  }
+  if (!draft) return <LoadingState />;
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="panel-label mb-2">Hour format</div>
-        <div className="join">
-          {([
-            { v: true, label: "12-hour" },
-            { v: false, label: "24-hour" },
-          ] as const).map(({ v, label }) => (
-            <button
-              key={label}
-              className={`btn btn-sm join-item ${cfg.hour12 === v ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setCfg({ ...cfg, hour12: v })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <label className="flex cursor-pointer items-center justify-between gap-4">
-        <span className="font-sans text-sm font-medium text-base-content">Show seconds</span>
-        <input
-          type="checkbox"
-          className="toggle toggle-primary shrink-0"
-          checked={cfg.showSeconds}
-          onChange={(e) => setCfg({ ...cfg, showSeconds: e.target.checked })}
+        <Segmented
+          value={draft.hour12}
+          options={[
+            { value: true, label: "12-hour" },
+            { value: false, label: "24-hour" },
+          ]}
+          onChange={(hour12) => patch({ hour12 })}
         />
-      </label>
-
-      <div className="flex justify-end gap-2 pt-1">
-        <button className="btn btn-sm btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
       </div>
+
+      <ToggleRow
+        label="Show seconds"
+        checked={draft.showSeconds}
+        onChange={(showSeconds) => patch({ showSeconds })}
+      />
+
+      <FormFooter
+        onCancel={onClose}
+        onSave={() => void save().then(onClose)}
+        saving={saving}
+      />
     </div>
   );
 }

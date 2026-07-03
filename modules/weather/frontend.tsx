@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { defineModule, type PanelProps, type SettingsProps } from "@hub/sdk";
+import {
+  EmptyState,
+  ErrorState,
+  Field,
+  FormFooter,
+  LoadingState,
+  Segmented,
+  TextInput,
+} from "@hub/components";
 import { manifest } from "./manifest";
 import type { CurrentWeather } from "./backend";
 
@@ -24,21 +33,8 @@ function WeatherPanel(_props: PanelProps) {
     refetchInterval: 10 * 60_000,
   });
 
-  if (isError) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <span className="panel-label text-error">Unable to load weather</span>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <span className="panel-label text-base-content/40">Loading…</span>
-      </div>
-    );
-  }
+  if (isError) return <ErrorState className="h-full">Unable to load weather</ErrorState>;
+  if (!data) return <EmptyState className="h-full">Loading…</EmptyState>;
 
   return (
     // justify-between + min-h-0 lets the panel absorb whatever height it's given
@@ -68,7 +64,7 @@ function WeatherPanel(_props: PanelProps) {
         </div>
       </div>
 
-      {/* High / Low / Humidity */}
+      {/* High / Low / Humidity / UV */}
       <div className="grid shrink-0 grid-cols-4 gap-2 border-t border-base-content/15 pt-2.5">
         {[
           { label: "High",     value: `${data.high}°` },
@@ -98,23 +94,32 @@ function WeatherPanel(_props: PanelProps) {
 
 function WeatherSettings({ onClose }: SettingsProps) {
   const qc = useQueryClient();
-  const [cfg, setCfg] = useState<WeatherConfig | null>(null);
+  // lat/lon are held as strings while editing so "-", "43." etc. survive typing;
+  // converted once on save.
+  const [units, setUnits] = useState<WeatherConfig["units"]>("celsius");
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/m/weather/config")
       .then((r) => r.json() as Promise<WeatherConfig>)
-      .then(setCfg)
-      .catch(() => setCfg({ lat: 0, lon: 0, units: "celsius" }));
+      .then((cfg) => {
+        setUnits(cfg.units);
+        setLat(String(cfg.lat));
+        setLon(String(cfg.lon));
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, []);
 
   async function save() {
-    if (!cfg) return;
     setSaving(true);
     await fetch("/api/m/weather/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat: Number(cfg.lat), lon: Number(cfg.lon), units: cfg.units }),
+      body: JSON.stringify({ lat: Number(lat) || 0, lon: Number(lon) || 0, units }),
     });
     setSaving(false);
     // New location/units → let the panel refetch fresh weather.
@@ -122,63 +127,45 @@ function WeatherSettings({ onClose }: SettingsProps) {
     onClose();
   }
 
-  if (!cfg) {
-    return (
-      <div className="grid place-items-center py-8">
-        <span className="loading loading-spinner text-base-content/40" />
-      </div>
-    );
-  }
+  if (!loaded) return <LoadingState />;
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="panel-label mb-2">Units</div>
-        <div className="join">
-          {(["celsius", "fahrenheit"] as const).map((u) => (
-            <button
-              key={u}
-              className={`btn btn-sm join-item ${cfg.units === u ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setCfg({ ...cfg, units: u })}
-            >
-              °{u === "celsius" ? "C" : "F"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          value={units}
+          options={[
+            { value: "celsius", label: "°C" },
+            { value: "fahrenheit", label: "°F" },
+          ]}
+          onChange={setUnits}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="panel-label">Latitude</span>
-          <input
+        <Field label="Latitude">
+          <TextInput
             type="number"
             step="any"
-            className="input input-sm bg-base-content/5 border-base-content/10"
-            value={cfg.lat}
-            onChange={(e) => setCfg({ ...cfg, lat: e.target.value as unknown as number })}
+            value={lat}
+            onChange={(e) => setLat(e.target.value)}
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="panel-label">Longitude</span>
-          <input
+        </Field>
+        <Field label="Longitude">
+          <TextInput
             type="number"
             step="any"
-            className="input input-sm bg-base-content/5 border-base-content/10"
-            value={cfg.lon}
-            onChange={(e) => setCfg({ ...cfg, lon: e.target.value as unknown as number })}
+            value={lon}
+            onChange={(e) => setLon(e.target.value)}
           />
-        </label>
+        </Field>
       </div>
-      <p className="font-serif italic text-xs text-base-content/45">
+      <p className="font-serif text-xs italic text-base-content/45">
         Tip: find coordinates by searching your town on any maps site. (Open-Meteo needs no API key.)
       </p>
 
-      <div className="flex justify-end gap-2 pt-1">
-        <button className="btn btn-sm btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <FormFooter onCancel={onClose} onSave={() => void save()} saving={saving} />
     </div>
   );
 }

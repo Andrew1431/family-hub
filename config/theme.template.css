@@ -5,14 +5,26 @@
    which is gitignored — so edit `theme.local.css` to customize your hub
    without creating commit noise. To reset, delete it and re-run `pnpm seed`.
 
-   Two themes ship by default:
-     • "hearth"     – warm dark (default), matches the reference design
-     • "hearth-day" – warm light, for daytime / bright rooms
-   Switch at runtime by setting <html data-theme="hearth-day">.
-   Add your own by copying a block and changing `name:`.
+   ── Adding your own theme ──────────────────────────────────────────────────
+   Copy any `@plugin "daisyui/theme"` block below, give it a unique `name:`,
+   and set `color-scheme:` to `light` or `dark`. That's it — the hub discovers
+   themes from the stylesheet at runtime, so your theme appears in
+   Settings → Theme automatically (as a swatch, in single or day/night mode).
+   Colors accept any CSS color; hex is fine. The tokens that matter most:
 
-   Colors accept any CSS color (hex is fine). The palette below mirrors the
-   reference UI: copper accent (#c4956a) on a dark warm brown (#1a1210).
+     --color-base-100   app background        --color-primary   main accent
+     --color-base-200   raised panels         --color-secondary second accent
+     --color-base-300   inset wells           --color-accent    third accent
+     --color-base-content  text               --color-*-content text ON that color
+
+   In a LIGHT theme keep base-200 (panels) LIGHTER than base-100 (canvas) so
+   cards read as raised; in a dark theme it's the reverse.
+
+   Three themes ship by default:
+     • "hearth"       – warm dark (default): copper on cocoa
+     • "hearth-day"   – warm light: copper on parchment
+     • "hearth-night" – dim ember: low-glare for evenings (pairs with
+                        hearth-day or hearth in the Day & night mode)
    ─────────────────────────────────────────────────────────────────────────── */
 
 /* Fonts. Families are pulled in (self-hosted, offline-friendly) by the UI via
@@ -23,46 +35,45 @@
   --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
-/* ── Hearth (dark, default) ────────────────────────────────────────────────── */
+/* ── Hearth (warm dark, default) ───────────────────────────────────────────── */
 @plugin "daisyui/theme" {
   name: "hearth";
   default: true;
   prefersdark: true;
   color-scheme: dark;
 
-  /* Surfaces: base-100 = app background, 200/300 = raised panels.
-     Brightened from the original near-black browns so the wall display reads
-     clearly across a room; panels (base-200) sit clearly above the app bg. */
-  --color-base-100: #231915;
-  --color-base-200: #2f221b;
-  --color-base-300: #3b2a21;
-  --color-base-content: #fbf7f0;
+  /* Surfaces: lifted out of the near-black browns — cocoa rather than
+     espresso — so the room's light doesn't swallow the display. */
+  --color-base-100: #2a1e18;
+  --color-base-200: #37281f;
+  --color-base-300: #453327;
+  --color-base-content: #f8f2e7;
 
   /* Copper — primary accent (buttons, AI orb, active states) */
-  --color-primary: #c4956a;
-  --color-primary-content: #1a1210;
+  --color-primary: #cf9c6c;
+  --color-primary-content: #2a1a10;
 
-  /* Indigo — secondary accent */
-  --color-secondary: #6366f1;
-  --color-secondary-content: #f8f4ec;
+  /* Soft indigo — secondary accent */
+  --color-secondary: #8f94f5;
+  --color-secondary-content: #14173f;
 
   /* Teal — tertiary accent ("All" / family-wide) */
-  --color-accent: #14b8a6;
-  --color-accent-content: #06201d;
+  --color-accent: #2fbfae;
+  --color-accent-content: #062522;
 
   /* Muted browns for subdued chrome */
-  --color-neutral: #3a2c24;
-  --color-neutral-content: #cbbcab;
+  --color-neutral: #453528;
+  --color-neutral-content: #d6c7b4;
 
   /* Status colors (double as priority / who hints) */
-  --color-info: #3b82f6;
-  --color-info-content: #04111f;
-  --color-success: #10b981;
-  --color-success-content: #04140e;
-  --color-warning: #f59e0b;
-  --color-warning-content: #1f1402;
-  --color-error: #f43f5e;
-  --color-error-content: #1f040a;
+  --color-info: #6aa6f8;
+  --color-info-content: #0a1a2e;
+  --color-success: #3ecf8e;
+  --color-success-content: #06281b;
+  --color-warning: #f3a33c;
+  --color-warning-content: #271703;
+  --color-error: #f2607a;
+  --color-error-content: #2b060f;
 
   /* Shape: rounded panels (20px), softer fields (10px) */
   --radius-selector: 1rem;
@@ -75,38 +86,84 @@
   --noise: 0;
 }
 
-/* ── Hearth Day (light) ────────────────────────────────────────────────────── */
+/* ── Hearth Day (warm light) ───────────────────────────────────────────────── */
 @plugin "daisyui/theme" {
   name: "hearth-day";
   default: false;
   prefersdark: false;
   color-scheme: light;
 
-  --color-base-100: #f8f4ec;
-  --color-base-200: #efe7d8;
-  --color-base-300: #e3d7c3;
-  --color-base-content: #2e211c;
+  /* Parchment canvas with LIGHTER panels — raised, not sunken. */
+  --color-base-100: #efe7d8;
+  --color-base-200: #f9f4ea;
+  --color-base-300: #e2d5bf;
+  --color-base-content: #362820;
 
-  --color-primary: #a9713f;
-  --color-primary-content: #fbf6ee;
+  --color-primary: #a8703d;
+  --color-primary-content: #fdf8f0;
 
-  --color-secondary: #4f46e5;
+  --color-secondary: #5a55e0;
   --color-secondary-content: #ffffff;
 
-  --color-accent: #0d9488;
+  --color-accent: #12907f;
   --color-accent-content: #ffffff;
 
-  --color-neutral: #d8c8b2;
-  --color-neutral-content: #4a3a30;
+  --color-neutral: #dccdb6;
+  --color-neutral-content: #4c3b2f;
 
-  --color-info: #2563eb;
+  --color-info: #2f6fe4;
   --color-info-content: #ffffff;
-  --color-success: #059669;
+  --color-success: #148a5e;
   --color-success-content: #ffffff;
-  --color-warning: #d97706;
+  --color-warning: #c97a06;
   --color-warning-content: #ffffff;
-  --color-error: #e11d48;
+  --color-error: #cf3a52;
   --color-error-content: #ffffff;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Hearth Night (dim ember — low-glare for evenings) ─────────────────────── */
+@plugin "daisyui/theme" {
+  name: "hearth-night";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  /* Everything a notch dimmer and warmer: the display should glow like
+     embers after dark, not shine like a monitor. */
+  --color-base-100: #1b120c;
+  --color-base-200: #251a12;
+  --color-base-300: #302217;
+  --color-base-content: #e4d6c2;
+
+  --color-primary: #b5825a;
+  --color-primary-content: #221408;
+
+  --color-secondary: #7f83d6;
+  --color-secondary-content: #111332;
+
+  --color-accent: #2b9d8e;
+  --color-accent-content: #05201c;
+
+  --color-neutral: #33261b;
+  --color-neutral-content: #bfae99;
+
+  --color-info: #5d92dd;
+  --color-info-content: #0a1626;
+  --color-success: #37b47e;
+  --color-success-content: #052217;
+  --color-warning: #d3902f;
+  --color-warning-content: #201203;
+  --color-error: #d55a70;
+  --color-error-content: #26060d;
 
   --radius-selector: 1rem;
   --radius-field: 0.625rem;

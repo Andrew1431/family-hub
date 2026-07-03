@@ -28,11 +28,22 @@ packages/
   core/     @hub/core  — Fastify server, module loader, capability registry, event bus,
                          sqlite KV stores, env loader, /api + /ws.
   ui/       @hub/ui    — React shell: fetches manifests/layout, places panels, owns chrome
-                         (Header, DashboardGrid, SettingsModal, ChatModal, AssistantOrb).
+                         (Header, DashboardGrid, SettingsModal, ChatModal, AssistantOrb),
+                         theme application (lib/useTheme + lib/themes discovery).
+  components/ @hub/components — shared UI primitives used by shell AND modules: Card, Title,
+                         ScrollView, Modal, IconButton, icons, LoadingState/EmptyState/ErrorState,
+                         form kit (Field, TextInput/TextArea/Select, ToggleRow, Segmented,
+                         FormFooter), useModuleConfig/useConfigDraft, hotkeys. Consumed as
+                         BUILT dist → rebuild after edits (pnpm --filter @hub/components build).
+  google/   @hub/google — shared Google OAuth chrome (GoogleConnect, GoogleAccountCard,
+                         openGoogleOAuth) + backend auth/route helpers. Also built dist.
   tooling/  @hub/tooling — seed.mjs (template→local config seeder), gen-modules.mjs
                          (scans modules/ → writes ui/src/modules.generated.ts).
-modules/    clock, weather, calendar-google, todo-google, assistant — each a mini-package
-            with manifest.ts (+ backend.ts and/or frontend.tsx, config.template.json).
+modules/    clock, weather, calendar-google, todo-google, notes, photos-drive, assistant, …
+            — each a mini-package with manifest.ts (+ backend.ts and/or frontend.tsx,
+            config.template.json). Large modules split their UI into modules/<name>/frontend/
+            (Panel, Settings, views…); frontend.tsx at the root stays as the thin entry that
+            gen-modules.mjs discovers.
 config/     *.template.* (committed defaults) + *.local.* (gitignored, seeded on first run).
 data/       hub.sqlite (runtime DB; gitignored).
 ```
@@ -116,6 +127,19 @@ All Google modules share ONE OAuth client (the hub's app identity): `.env` `GOOG
 `GOOGLE_CLIENT_SECRET`, wired via each module's `secretEnv` alias (`clientId`→`GOOGLE_CLIENT_ID`,
 etc.). Per-account **refresh tokens stay per-module** (each module's own secret ns, least-privilege
 scopes), so each account connects once per Google module. See `modules/calendar-google/google.ts`.
+
+## Theming
+
+daisyUI v5 theme blocks live in `config/theme.template.css` (seeded → `theme.local.css`,
+gitignored). Three ship by default: `hearth` (warm dark, default), `hearth-day` (warm light),
+`hearth-night` (dim ember for evenings). **Themes are discovered at runtime** — the UI scans
+the stylesheet for `[data-theme=…]` rules (`packages/ui/src/lib/themes.ts`), so adding a block
+to `theme.local.css` makes it appear in Settings → Theme with zero code changes. Hub config
+keys: `theme` (single mode) or `themeMode:"auto"` + `themeDay`/`themeNight`/`dayStart`/`nightStart`
+(wall-clock day/night switching, applied by `lib/useTheme.ts`). Style rules for theme-proof UI:
+**never hard-code white/black mixes** (`bg-white/5`, `rgba(255,255,255,…)`) in panels — use
+`base-content`/`primary` opacity mixes so every theme (light included) renders correctly. In
+light themes `base-200` (panels) is LIGHTER than `base-100` (canvas); dark is the reverse.
 
 ## Adding a module (recipe)
 

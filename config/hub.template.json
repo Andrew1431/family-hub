@@ -1,8 +1,13 @@
 {
-  "$comment": "App-level settings. Copied to hub.local.json (gitignored) on first build; edit that. familyName fills the greeting; set showGreeting=false to hide it. theme must match a theme name from theme.local.css (e.g. 'hearth' or 'hearth-day'). showAssistant toggles the AI assistant feature — set false to disable it entirely (no orb, no Spacebar shortcut; the dashboard grid reclaims the space). showOrb hides just the orb while keeping the Spacebar shortcut active (only applies when showAssistant is true).",
+  "$comment": "App-level settings. Copied to hub.local.json (gitignored) on first build; edit that. familyName fills the greeting; set showGreeting=false to hide it. showAssistant toggles the AI assistant feature — set false to disable it entirely (no orb, no Spacebar shortcut; the dashboard grid reclaims the space). showOrb hides just the orb while keeping the Spacebar shortcut active (only applies when showAssistant is true). THEMES: themeMode 'single' uses `theme`; 'auto' switches between `themeDay` (from dayStart) and `themeNight` (from nightStart) on the wall clock. Theme names must match a theme block in theme.local.css — the hub discovers those at runtime, so custom themes work here too.",
   "familyName": "family",
   "showGreeting": true,
   "showAssistant": true,
   "showOrb": true,
-  "theme": "hearth"
+  "theme": "hearth",
+  "themeMode": "single",
+  "themeDay": "hearth-day",
+  "themeNight": "hearth-night",
+  "dayStart": "07:00",
+  "nightStart": "21:00"
 }

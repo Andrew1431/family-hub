@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { defineModule, type PanelProps } from "@hub/sdk";
-import { ScrollView, Title, useModuleHotkeys } from "@hub/components";
+import { IconPlus, IconX, LoadingState, ScrollView, Title, useModuleHotkeys } from "@hub/components";
 import { manifest } from "./manifest";
 
 /*
@@ -101,9 +101,7 @@ function NoteCard({
                    focus-visible:opacity-100 group-hover/note:opacity-100"
         style={{ color: ink }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
+        <IconX size={18} weight={2.2} />
       </button>
 
       {/* The note text — large, the whole point of the card. Grows with its
@@ -229,14 +227,12 @@ function NotesPanel(_props: PanelProps) {
   useModuleHotkeys({ n: addNote });
 
   if (notes === null) {
-    return (
+    return query.isError ? (
       <div className="grid h-full place-items-center">
-        {query.isError ? (
-          <span className="font-serif text-sm italic text-base-content/60">Couldn't load notes.</span>
-        ) : (
-          <span className="loading loading-spinner text-base-content/40" />
-        )}
+        <span className="font-serif text-sm italic text-base-content/60">Couldn't load notes.</span>
       </div>
+    ) : (
+      <LoadingState className="h-full" />
     );
   }
 
@@ -282,9 +278,7 @@ function NotesPanel(_props: PanelProps) {
           className="absolute bottom-2 right-2 grid h-14 w-14 place-items-center rounded-full
                      bg-primary text-primary-content shadow-lg transition-transform hover:scale-105 active:scale-95"
         >
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <IconPlus size={26} weight={2.4} />
         </button>
       )}
     </div>

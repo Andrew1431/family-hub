@@ -7,7 +7,15 @@ export interface HubConfig {
   showAssistant: boolean;
   /** Show the orb itself. When false the orb is hidden but Spacebar still opens the chat (only applies when showAssistant). */
   showOrb: boolean;
+  /** Theme name (single mode) — must match a theme block in theme.local.css. */
   theme: string;
+  /** "single" (default) or "auto" — switch day/night themes on the wall clock. */
+  themeMode?: "single" | "auto";
+  themeDay?: string;
+  themeNight?: string;
+  /** "HH:MM" boundaries for auto mode. */
+  dayStart?: string;
+  nightStart?: string;
 }
 
 async function getJson<T>(url: string): Promise<T> {

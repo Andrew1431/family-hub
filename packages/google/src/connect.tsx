@@ -9,6 +9,52 @@ import { useState, type ReactNode } from "react";
  * module-specific and rendered by the module itself, around this component.
  */
 
+/**
+ * Open the module's OAuth flow in a popup; the popup closes itself on success,
+ * after which `onDone` fires (also fires if the user just closes it).
+ */
+export function openGoogleOAuth(apiBase: string, onDone: () => void): void {
+  const popup = window.open(`${apiBase}/oauth/start`, "google-oauth", "width=520,height=640");
+  const timer = setInterval(() => {
+    if (!popup || popup.closed) {
+      clearInterval(timer);
+      onDone();
+    }
+  }, 800);
+}
+
+/**
+ * A connected account's card: email + Disconnect on top, module-specific rows
+ * (calendar checkboxes, task lists, …) as children.
+ */
+export function GoogleAccountCard({
+  email,
+  onDisconnect,
+  children,
+}: {
+  email: string;
+  onDisconnect: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-base-content/10 bg-base-content/[0.03] p-2.5">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-base-content">
+          {email}
+        </span>
+        <button
+          type="button"
+          onClick={onDisconnect}
+          className="text-[11px] text-base-content/40 hover:text-error"
+        >
+          Disconnect
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export interface GoogleConnectProps {
   /** This module's API base, e.g. `/api/m/calendar-google`. */
   apiBase: string;
@@ -76,14 +122,7 @@ export function GoogleConnect({
   }
 
   function connect() {
-    const popup = window.open(`${apiBase}/oauth/start`, "google-oauth", "width=520,height=640");
-    // The popup closes itself on success; refresh once it's gone.
-    const timer = setInterval(() => {
-      if (!popup || popup.closed) {
-        clearInterval(timer);
-        onChanged();
-      }
-    }, 800);
+    openGoogleOAuth(apiBase, onChanged);
   }
 
   if (!configured) {

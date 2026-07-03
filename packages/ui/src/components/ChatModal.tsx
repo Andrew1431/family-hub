@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ScrollView } from "@hub/components";
+import { Modal } from "@hub/components";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -61,6 +61,21 @@ const SUGGESTIONS = [
   "What tasks are still pending?",
 ];
 
+function OrbBadge({ size = "lg" }: { size?: "sm" | "lg" }) {
+  const cls =
+    size === "lg"
+      ? "h-9 w-9 shadow-[0_0_16px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]"
+      : "h-6 w-6 text-[11px]";
+  return (
+    <div
+      className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-warning text-primary-content ${cls}`}
+      aria-hidden
+    >
+      ✦
+    </div>
+  );
+}
+
 export function ChatModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [messages, setMessages] = useState<Msg[]>([GREETING]);
@@ -75,12 +90,7 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
@@ -111,118 +121,90 @@ export function ChatModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center pb-[100px]">
-      <div
-        onClick={onClose}
-        className="absolute inset-0 bg-black/80"
-        aria-hidden
-      />
-      <div
-        className="panel relative z-[1] flex w-[min(640px,96vw)] flex-col overflow-hidden p-0
-                   shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
-        style={{ height: "min(580px, 70vh)", animation: "slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b border-base-content/10 bg-primary/[0.06] p-4">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-warning text-primary-content shadow-[0_0_16px_color-mix(in_oklab,var(--color-primary)_40%,transparent)]">
-            ✦
-          </div>
-          <div className="flex-1">
-            <div className="font-sans text-sm font-semibold text-base-content">Family Assistant</div>
-            <div className="panel-label normal-case tracking-normal">Knows your schedule, tasks & weather</div>
-          </div>
-          <button
-            onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg border border-base-content/10 bg-base-content/5 text-base-content/60"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Messages */}
-        <ScrollView className="flex flex-1 flex-col gap-3 p-4">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex items-end gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {m.role === "assistant" && (
-                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-warning text-[11px] text-primary-content">
-                  ✦
-                </div>
-              )}
-              <div
-                className={`max-w-[80%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                  m.role === "user"
-                    ? "whitespace-pre-wrap rounded-[18px_18px_4px_18px] bg-primary text-primary-content"
-                    : "rounded-[18px_18px_18px_4px] border border-base-content/10 bg-base-content/5 text-base-content"
-                }`}
-              >
-                {m.role === "assistant" ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
-                    {m.content}
-                  </ReactMarkdown>
-                ) : (
-                  m.content
-                )}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex items-end gap-2">
-              <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-warning text-[11px] text-primary-content">
-                ✦
-              </div>
-              <div className="rounded-[18px_18px_18px_4px] border border-base-content/10 bg-base-content/5 px-4 py-2.5">
-                <span className="loading loading-dots loading-sm text-primary" />
-              </div>
+    <Modal
+      title="Family Assistant"
+      subtitle="Knows your schedule, tasks & weather"
+      icon={<OrbBadge />}
+      onClose={onClose}
+      align="bottom"
+      width="min(640px, 96vw)"
+      height="min(580px, 70vh)"
+      bodyClassName="flex flex-col gap-3"
+      footer={
+        <div className="flex flex-col gap-2.5">
+          {messages.length <= 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[11px] text-primary
+                             transition-colors hover:bg-primary/20"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           )}
-          <div ref={bottomRef} />
-        </ScrollView>
-
-        {/* Suggestions */}
-        {messages.length <= 1 && (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2.5">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => send(s)}
-                className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[11px] text-primary"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              placeholder="Ask about your schedule, add to-dos, get ideas…"
+              rows={1}
+              className="max-h-[100px] flex-1 resize-none rounded-2xl border border-base-content/15 bg-base-content/5 px-3.5 py-2.5 text-[13px] text-base-content outline-none"
+            />
+            <button
+              onClick={() => send()}
+              disabled={!input.trim() || loading}
+              aria-label="Send"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-warning text-lg text-primary-content disabled:opacity-40"
+            >
+              ↑
+            </button>
           </div>
-        )}
-
-        {/* Input */}
-        <div className="flex items-end gap-2 border-t border-base-content/10 bg-black/20 p-3">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder="Ask about your schedule, add to-dos, get ideas…"
-            rows={1}
-            className="max-h-[100px] flex-1 resize-none rounded-2xl border border-base-content/15 bg-base-content/5 px-3.5 py-2.5 text-[13px] text-base-content outline-none"
-          />
-          <button
-            onClick={() => send()}
-            disabled={!input.trim() || loading}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-warning text-lg text-primary-content disabled:opacity-40"
-          >
-            ↑
-          </button>
         </div>
-      </div>
-
-      <style>{`@keyframes slideUp { from { opacity:0; transform: translateY(40px) scale(0.96);} to { opacity:1; transform: translateY(0) scale(1);} }`}</style>
-    </div>
+      }
+    >
+      {messages.map((m, i) => (
+        <div
+          key={i}
+          className={`flex items-end gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+        >
+          {m.role === "assistant" && <OrbBadge size="sm" />}
+          <div
+            className={`max-w-[80%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
+              m.role === "user"
+                ? "whitespace-pre-wrap rounded-[18px_18px_4px_18px] bg-primary text-primary-content"
+                : "rounded-[18px_18px_18px_4px] border border-base-content/10 bg-base-content/5 text-base-content"
+            }`}
+          >
+            {m.role === "assistant" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              m.content
+            )}
+          </div>
+        </div>
+      ))}
+      {loading && (
+        <div className="flex items-end gap-2">
+          <OrbBadge size="sm" />
+          <div className="rounded-[18px_18px_18px_4px] border border-base-content/10 bg-base-content/5 px-4 py-2.5">
+            <span className="loading loading-dots loading-sm text-primary" />
+          </div>
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </Modal>
   );
 }
