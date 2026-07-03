@@ -153,6 +153,7 @@ scopes), so each account connects once per Google module. See `modules/calendar-
 | calendar-google | **real, verified live** — ICS subscriptions (read) + Google OAuth accounts (read/write). Merged, day-grouped; OAuth connect + basic event creation confirmed working. |
 | todo-google | **still mock** — shaped like Google Tasks; not wired to real API yet. |
 | assistant | **real** — Claude proxy + tool-use over the capability registry. Needs `ANTHROPIC_API_KEY`. |
+| meal-prep | **real (local data)** — fullscreen weekly planner; saved-meal library (markdown recipes, groceries, fast/regular/all-day complexity) applied to days; grocery commit hands off to todo-google via `ctx.capabilities.invoke("todo_add_tasks")` — the first cross-module call (capabilities are the inter-module API). |
 
 **Next up:** Google **Tasks** module (reuses the shared Google client + per-module connect, mirrors
 the calendar's OAuth pattern). Later: calendar multiple-view toggle (day/week/agenda/month);

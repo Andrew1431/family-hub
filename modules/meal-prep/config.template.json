@@ -1,0 +1,7 @@
+{
+  "$comment": "Meal planner settings + data. 'weekStart' is the day the week view begins on ('sunday'…'saturday'). 'groceryList' is the Google Tasks list name grocery commits target (matched case-insensitively by the to-do module; falls back to its default list). 'meals' (the saved-meal library) and 'days' (YYYY-MM-DD → ordered meal-id list) are managed from the panel and persist as DB overrides, so this file stays empty.",
+  "weekStart": "sunday",
+  "groceryList": "Groceries",
+  "meals": [],
+  "days": {}
+}

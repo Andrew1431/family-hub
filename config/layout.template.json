@@ -22,6 +22,14 @@
       "widgets": [
         { "id": "calendar-full", "module": "calendar-google", "col": 1, "row": 1, "w": 12, "h": 6, "settings": { "view": "month" } }
       ]
+    },
+    {
+      "id": "meals",
+      "icon": "meals",
+      "label": "Meals",
+      "widgets": [
+        { "id": "meals-full", "module": "meal-prep", "col": 1, "row": 1, "w": 12, "h": 6 }
+      ]
     }
   ]
 }
