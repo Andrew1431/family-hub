@@ -174,3 +174,226 @@
   --depth: 1;
   --noise: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Fun extras — five just-for-kicks themes. Delete any you don't want; the
+   theme picker only shows what's in this file.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Synthwave (neon arcade — hot pink on midnight purple) ─────────────────── */
+@plugin "daisyui/theme" {
+  name: "synthwave";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #1a1030;
+  --color-base-200: #241745;
+  --color-base-300: #2f1f57;
+  --color-base-content: #f2e9ff;
+
+  --color-primary: #ff5fa2;
+  --color-primary-content: #33001a;
+
+  --color-secondary: #4be1ec;
+  --color-secondary-content: #002b30;
+
+  --color-accent: #ffd447;
+  --color-accent-content: #332600;
+
+  --color-neutral: #322357;
+  --color-neutral-content: #cabcf0;
+
+  --color-info: #58b5ff;
+  --color-info-content: #041a2e;
+  --color-success: #43e6a0;
+  --color-success-content: #03271a;
+  --color-warning: #ffb84d;
+  --color-warning-content: #2b1a00;
+  --color-error: #ff6577;
+  --color-error-content: #2e030b;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Tidepool (light — seafoam, coral, and wet sand) ───────────────────────── */
+@plugin "daisyui/theme" {
+  name: "tidepool";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  /* Seafoam canvas, lighter panels — raised like sun-bleached shells. */
+  --color-base-100: #dff0ee;
+  --color-base-200: #f4fbfa;
+  --color-base-300: #c8e2df;
+  --color-base-content: #16383b;
+
+  --color-primary: #0d7f83;
+  --color-primary-content: #f0fbfb;
+
+  --color-secondary: #d95c44;
+  --color-secondary-content: #fff5f2;
+
+  --color-accent: #a8770a;
+  --color-accent-content: #fffaef;
+
+  --color-neutral: #cfe4e1;
+  --color-neutral-content: #2c4a4c;
+
+  --color-info: #2277d0;
+  --color-info-content: #ffffff;
+  --color-success: #178f57;
+  --color-success-content: #ffffff;
+  --color-warning: #b97a08;
+  --color-warning-content: #ffffff;
+  --color-error: #cc4054;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Phosphor (CRT terminal — glowing green on near-black) ─────────────────── */
+@plugin "daisyui/theme" {
+  name: "phosphor";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #0a0f0a;
+  --color-base-200: #101810;
+  --color-base-300: #182418;
+  --color-base-content: #c8f5c8;
+
+  --color-primary: #33ff66;
+  --color-primary-content: #002200;
+
+  --color-secondary: #ffbf3f;
+  --color-secondary-content: #241800;
+
+  --color-accent: #35e0e0;
+  --color-accent-content: #002424;
+
+  --color-neutral: #16301c;
+  --color-neutral-content: #8fd49b;
+
+  --color-info: #4dc3ff;
+  --color-info-content: #001f2e;
+  --color-success: #35e07a;
+  --color-success-content: #00240f;
+  --color-warning: #ffd23f;
+  --color-warning-content: #241c00;
+  --color-error: #ff5e5e;
+  --color-error-content: #2b0000;
+
+  /* Sharper corners — terminals don't do soft. */
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ── Sorbet (light — raspberry, tangerine, and mint on strawberry cream) ───── */
+@plugin "daisyui/theme" {
+  name: "sorbet";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #fdeff0;
+  --color-base-200: #fffafb;
+  --color-base-300: #f6dbe0;
+  --color-base-content: #4a2b3a;
+
+  --color-primary: #e0407b;
+  --color-primary-content: #ffffff;
+
+  --color-secondary: #e07f16;
+  --color-secondary-content: #ffffff;
+
+  --color-accent: #1ca878;
+  --color-accent-content: #ffffff;
+
+  --color-neutral: #f3d9cf;
+  --color-neutral-content: #6b4356;
+
+  --color-info: #3b82f6;
+  --color-info-content: #ffffff;
+  --color-success: #16a06a;
+  --color-success-content: #ffffff;
+  --color-warning: #d98a0b;
+  --color-warning-content: #ffffff;
+  --color-error: #e0405c;
+  --color-error-content: #ffffff;
+
+  /* Extra scoopy corners. */
+  --radius-selector: 2rem;
+  --radius-field: 1rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Nebula (deep space — violet starlight on indigo void) ─────────────────── */
+@plugin "daisyui/theme" {
+  name: "nebula";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #10142b;
+  --color-base-200: #1a2040;
+  --color-base-300: #252c55;
+  --color-base-content: #e8ecff;
+
+  --color-primary: #9d8cff;
+  --color-primary-content: #17103d;
+
+  --color-secondary: #f472b6;
+  --color-secondary-content: #3d0a24;
+
+  --color-accent: #67e8f9;
+  --color-accent-content: #063038;
+
+  --color-neutral: #262d52;
+  --color-neutral-content: #b7c0e8;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
