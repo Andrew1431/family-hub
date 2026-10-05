@@ -11,6 +11,7 @@ import {
   TextInput,
 } from "@hub/components";
 import { GoogleAccountCard, GoogleConnect, openGoogleOAuth } from "@hub/google/connect";
+import { SHORTCUTS } from "./shortcuts";
 import { API, TASKS_KEY, type ViewMode } from "./types";
 
 interface SettingsList {
@@ -250,6 +251,25 @@ export function TodoSettings({ onClose }: SettingsProps) {
           )}
         </div>
       )}
+
+      <section className="flex flex-col gap-2">
+        <span className="panel-label">Keyboard shortcuts</span>
+        <p className="font-serif text-[13px] italic text-base-content/60">
+          Press the card's hotkey to select it, then:
+        </p>
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 text-sm">
+          {SHORTCUTS.map((s) => (
+            <div key={s.action} className="contents">
+              <dt className="flex gap-1">
+                {s.keys.map((k) => (
+                  <kbd key={k} className="kbd kbd-sm">{k}</kbd>
+                ))}
+              </dt>
+              <dd className="text-base-content/80">{s.action}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <FormFooter
         bordered

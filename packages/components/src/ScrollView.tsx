@@ -76,10 +76,14 @@ export const ScrollView = forwardRef<HTMLDivElement, ScrollViewProps>(
         // Only engage if the content actually overflows along the gesture's
         // dominant axis — otherwise let the press bubble (e.g. to a parent
         // ScrollView, or a button) untouched.
-        const horizontal = Math.abs(dx) > Math.abs(dy);
-        if (horizontal && scrollsX) return el.scrollWidth > el.clientWidth;
-        if (!horizontal && scrollsY) return el.scrollHeight > el.clientHeight;
-        return false;
+        const overflowsX = el.scrollWidth > el.clientWidth;
+        const overflowsY = el.scrollHeight > el.clientHeight;
+        // Single-axis scrollers forgive finger drift: a short strip (e.g. a row
+        // of chips) claims any drag that isn't clearly along the other axis,
+        // instead of losing it to a wobble that's a hair more vertical.
+        if (axis === "x") return overflowsX && Math.abs(dx) * 2 > Math.abs(dy);
+        if (axis === "y") return overflowsY && Math.abs(dy) * 2 > Math.abs(dx);
+        return Math.abs(dx) > Math.abs(dy) ? overflowsX : overflowsY;
       };
 
       const onPointerDown = (e: PointerEvent) => {
@@ -209,7 +213,7 @@ export const ScrollView = forwardRef<HTMLDivElement, ScrollViewProps>(
         el.removeEventListener("pointercancel", endDrag);
         el.removeEventListener("click", onClick, true);
       };
-    }, [scrollsX, scrollsY]);
+    }, [axis, scrollsX, scrollsY]);
 
     const overflow =
       axis === "both"

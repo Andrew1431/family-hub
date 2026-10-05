@@ -43,8 +43,9 @@ export function useTasks() {
       }),
     onMutate: async (vars) => {
       const ctx = await beginOptimistic();
-      // Insert a placeholder row immediately; the invalidate on settle swaps in
-      // the real task (with its server id).
+      // Insert a placeholder row immediately — at the TOP, which is where Google
+      // Tasks puts a new task (no `previous` sent) — so the refetch on settle
+      // swaps in the real task without the row jumping.
       const temp: Task = {
         id: `temp-${Date.now()}`,
         title: vars.title,
@@ -54,7 +55,7 @@ export function useTasks() {
       patchCache((prev) => ({
         ...prev,
         lists: prev.lists.map((l) =>
-          l.id === vars.listId ? { ...l, tasks: [...l.tasks, temp] } : l,
+          l.id === vars.listId ? { ...l, tasks: [temp, ...l.tasks] } : l,
         ),
       }));
       return ctx;
