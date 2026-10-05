@@ -24,6 +24,7 @@ export function OverlayHost({
   const [idleMs, setIdleMs] = useState(0);
   const lastActivity = useRef(Date.now());
   const activeNames = useRef(new Set<string>());
+  const keyHandlers = useRef(new Map<string, (e: KeyboardEvent) => boolean>());
   const onActiveChangeRef = useRef(onActiveChange);
   onActiveChangeRef.current = onActiveChange;
 
@@ -44,6 +45,19 @@ export function OverlayHost({
     return s;
   }
 
+  const keySetters = useRef(new Map<string, (h: ((e: KeyboardEvent) => boolean) | null) => void>());
+  function keySetterFor(name: string): (h: ((e: KeyboardEvent) => boolean) | null) => void {
+    let s = keySetters.current.get(name);
+    if (!s) {
+      s = (h) => {
+        if (h) keyHandlers.current.set(name, h);
+        else keyHandlers.current.delete(name);
+      };
+      keySetters.current.set(name, s);
+    }
+    return s;
+  }
+
   // Coarse idle clock. Cheap: while idle, every overlay renders `null`.
   useEffect(() => {
     const id = window.setInterval(() => setIdleMs(Date.now() - lastActivity.current), 1000);
@@ -55,6 +69,17 @@ export function OverlayHost({
   useEffect(() => {
     const onActivity = (e: Event) => {
       const waking = activeNames.current.size > 0;
+      // An active overlay may claim a key (e.g. ←/→ in a slideshow): it's
+      // handled there and does NOT count as activity, so the overlay stays up.
+      if (waking && e.type === "keydown") {
+        for (const [name, handle] of keyHandlers.current) {
+          if (activeNames.current.has(name) && handle(e as KeyboardEvent)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return;
+          }
+        }
+      }
       lastActivity.current = Date.now();
       setIdleMs(0);
       if (waking) {
@@ -76,7 +101,15 @@ export function OverlayHost({
       {modules.map((m) => {
         const Overlay = moduleFrontends[m.name]?.Overlay;
         if (!Overlay) return null;
-        return <Overlay key={m.name} moduleName={m.name} idleMs={idleMs} setActive={setterFor(m.name)} />;
+        return (
+          <Overlay
+            key={m.name}
+            moduleName={m.name}
+            idleMs={idleMs}
+            setActive={setterFor(m.name)}
+            setKeyHandler={keySetterFor(m.name)}
+          />
+        );
       })}
     </>
   );

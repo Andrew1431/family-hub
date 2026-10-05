@@ -397,3 +397,476 @@
   --depth: 1;
   --noise: 0;
 }
+
+/* ── Autumn (dusk in the orchard — burnt orange on mulled-wine brown) ── */
+@plugin "daisyui/theme" {
+  name: "autumn";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #1f1210;
+  --color-base-200: #2b1915;
+  --color-base-300: #38221c;
+  --color-base-content: #f0dfcc;
+
+  --color-primary: #d9692b;
+  --color-primary-content: #2a0f02;
+
+  --color-secondary: #e0a83a;
+  --color-secondary-content: #2b1c02;
+
+  --color-accent: #8a9a4b;
+  --color-accent-content: #161c05;
+
+  --color-neutral: #3a2620;
+  --color-neutral-content: #cdb7a3;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Fall (harvest afternoon — pumpkin and oak on warm linen) ── */
+@plugin "daisyui/theme" {
+  name: "fall";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #efe3d0;
+  --color-base-200: #faf3e8;
+  --color-base-300: #e2d2b8;
+  --color-base-content: #3b2416;
+
+  --color-primary: #c2541c;
+  --color-primary-content: #fff4ea;
+
+  --color-secondary: #9a6b1c;
+  --color-secondary-content: #fff7e6;
+
+  --color-accent: #5f7a3a;
+  --color-accent-content: #f3f8ea;
+
+  --color-neutral: #4a3424;
+  --color-neutral-content: #f2e6d6;
+
+  --color-info: #2563eb;
+  --color-info-content: #eef4ff;
+  --color-success: #15803d;
+  --color-success-content: #effbf3;
+  --color-warning: #b45309;
+  --color-warning-content: #fff8eb;
+  --color-error: #be123c;
+  --color-error-content: #fff1f3;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Halloween (jack-o'-lantern orange and slime green on midnight purple) ── */
+@plugin "daisyui/theme" {
+  name: "halloween";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #120d1a;
+  --color-base-200: #1c1428;
+  --color-base-300: #271c37;
+  --color-base-content: #f1e8ff;
+
+  --color-primary: #ff7a18;
+  --color-primary-content: #2a1000;
+
+  --color-secondary: #a855f7;
+  --color-secondary-content: #1e0838;
+
+  --color-accent: #84cc16;
+  --color-accent-content: #162400;
+
+  --color-neutral: #2a2040;
+  --color-neutral-content: #c8bce0;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Cute spooky (pastel ghosts — bubblegum, mint and lilac) ── */
+@plugin "daisyui/theme" {
+  name: "cute-spooky";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #ece4f7;
+  --color-base-200: #f8f4fd;
+  --color-base-300: #ddd1ef;
+  --color-base-content: #3d2f55;
+
+  --color-primary: #f472b6;
+  --color-primary-content: #3a0a24;
+
+  --color-secondary: #7fd8be;
+  --color-secondary-content: #0b2e24;
+
+  --color-accent: #ffb36b;
+  --color-accent-content: #3a1d00;
+
+  --color-neutral: #4a3b66;
+  --color-neutral-content: #f3eefb;
+
+  --color-info: #2563eb;
+  --color-info-content: #eef4ff;
+  --color-success: #15803d;
+  --color-success-content: #effbf3;
+  --color-warning: #b45309;
+  --color-warning-content: #fff8eb;
+  --color-error: #be123c;
+  --color-error-content: #fff1f3;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Dark spooky (candlelit crypt — blood red and bone on soot) ── */
+@plugin "daisyui/theme" {
+  name: "dark-spooky";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #0b0909;
+  --color-base-200: #151111;
+  --color-base-300: #201918;
+  --color-base-content: #e6dccb;
+
+  --color-primary: #b3122e;
+  --color-primary-content: #ffe9ec;
+
+  --color-secondary: #7a6a55;
+  --color-secondary-content: #f5ecdf;
+
+  --color-accent: #5b8c7a;
+  --color-accent-content: #0a1e17;
+
+  --color-neutral: #1e1716;
+  --color-neutral-content: #a89a88;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Winter (fresh snowfall — pine and cranberry on frosted white) ── */
+@plugin "daisyui/theme" {
+  name: "winter";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #e3ebf2;
+  --color-base-200: #f7fafc;
+  --color-base-300: #d2dde8;
+  --color-base-content: #1c2b3a;
+
+  --color-primary: #2f6b4f;
+  --color-primary-content: #effaf4;
+
+  --color-secondary: #b3263f;
+  --color-secondary-content: #fff0f2;
+
+  --color-accent: #c9a04a;
+  --color-accent-content: #2a1f05;
+
+  --color-neutral: #2b3b4c;
+  --color-neutral-content: #e8eef4;
+
+  --color-info: #2563eb;
+  --color-info-content: #eef4ff;
+  --color-success: #15803d;
+  --color-success-content: #effbf3;
+  --color-warning: #b45309;
+  --color-warning-content: #fff8eb;
+  --color-error: #be123c;
+  --color-error-content: #fff1f3;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Ice (glacier at night — cold cyan and aurora on deep navy) ── */
+@plugin "daisyui/theme" {
+  name: "ice";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #0a1622;
+  --color-base-200: #102233;
+  --color-base-300: #172f45;
+  --color-base-content: #e3f4ff;
+
+  --color-primary: #7dd3fc;
+  --color-primary-content: #062236;
+
+  --color-secondary: #a5b4fc;
+  --color-secondary-content: #141a4a;
+
+  --color-accent: #5eead4;
+  --color-accent-content: #032b26;
+
+  --color-neutral: #18304a;
+  --color-neutral-content: #b2cde0;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Absinthe (eccentric — electric green on aubergine) ── */
+@plugin "daisyui/theme" {
+  name: "absinthe";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #1a0f1f;
+  --color-base-200: #25162c;
+  --color-base-300: #321e3b;
+  --color-base-content: #f0e6f5;
+
+  --color-primary: #b7f542;
+  --color-primary-content: #1c2a00;
+
+  --color-secondary: #ff5fa2;
+  --color-secondary-content: #3a0420;
+
+  --color-accent: #ffd23f;
+  --color-accent-content: #2e2300;
+
+  --color-neutral: #2f1d38;
+  --color-neutral-content: #cdb9d8;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Citrus (eccentric — lime and hot pink on lemon zest) ── */
+@plugin "daisyui/theme" {
+  name: "citrus";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #fbf3b8;
+  --color-base-200: #fffce6;
+  --color-base-300: #f2e48a;
+  --color-base-content: #2d2a0a;
+
+  --color-primary: #e0177a;
+  --color-primary-content: #fff0f7;
+
+  --color-secondary: #4caf1f;
+  --color-secondary-content: #f2ffe8;
+
+  --color-accent: #ff7a00;
+  --color-accent-content: #2a1200;
+
+  --color-neutral: #3a3510;
+  --color-neutral-content: #fffbe0;
+
+  --color-info: #2563eb;
+  --color-info-content: #eef4ff;
+  --color-success: #15803d;
+  --color-success-content: #effbf3;
+  --color-warning: #b45309;
+  --color-warning-content: #fff8eb;
+  --color-error: #be123c;
+  --color-error-content: #fff1f3;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Flamingo (eccentric — coral pink on deep lagoon teal) ── */
+@plugin "daisyui/theme" {
+  name: "flamingo";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #06262a;
+  --color-base-200: #0b3439;
+  --color-base-300: #11434a;
+  --color-base-content: #e6fbf8;
+
+  --color-primary: #ff7f8f;
+  --color-primary-content: #3a0710;
+
+  --color-secondary: #ffc857;
+  --color-secondary-content: #2e1f00;
+
+  --color-accent: #b48cff;
+  --color-accent-content: #1d0b40;
+
+  --color-neutral: #103a40;
+  --color-neutral-content: #a9d6d1;
+
+  --color-info: #60a5fa;
+  --color-info-content: #0a1a33;
+  --color-success: #34d399;
+  --color-success-content: #04281c;
+  --color-warning: #fbbf24;
+  --color-warning-content: #2b1f02;
+  --color-error: #fb7185;
+  --color-error-content: #330a12;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Diner (eccentric — retro mustard and cherry on mint formica) ── */
+@plugin "daisyui/theme" {
+  name: "diner";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #cfeee2;
+  --color-base-200: #f0fbf6;
+  --color-base-300: #b4e2d0;
+  --color-base-content: #1e2a26;
+
+  --color-primary: #d7263d;
+  --color-primary-content: #fff0f2;
+
+  --color-secondary: #e8b20e;
+  --color-secondary-content: #2a1e00;
+
+  --color-accent: #1b6f8c;
+  --color-accent-content: #eaf7fb;
+
+  --color-neutral: #24413a;
+  --color-neutral-content: #e6f6ef;
+
+  --color-info: #2563eb;
+  --color-info-content: #eef4ff;
+  --color-success: #15803d;
+  --color-success-content: #effbf3;
+  --color-warning: #b45309;
+  --color-warning-content: #fff8eb;
+  --color-error: #be123c;
+  --color-error-content: #fff1f3;
+
+  --radius-selector: 1rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}

@@ -57,6 +57,13 @@ export interface OverlayProps {
   idleMs: number;
   /** Report whether this overlay is currently covering the screen. */
   setActive: (active: boolean) => void;
+  /**
+   * Claim keys while active. The shell offers each keydown to the handler
+   * BEFORE treating it as a wake; return `true` to consume it (the overlay
+   * stays up, idle is not reset, no global shortcut fires). Pass `null` to
+   * release. Unclaimed keys wake the screen as usual.
+   */
+  setKeyHandler: (handler: ((e: KeyboardEvent) => boolean) | null) => void;
 }
 
 /** The frontend half of a module: its manifest, panel, and optional settings. */
