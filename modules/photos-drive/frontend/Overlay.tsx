@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { OverlayProps } from "@hub/sdk";
 import { CONFIG_DEFAULTS, fetchPhotoConfig, fetchScreensaverPhotos } from "./types";
-import { Slideshow, type SlideshowHandle } from "./Slideshow";
+import { backdropSampler, Slideshow, type SlideshowHandle } from "./Slideshow";
 
 /**
  * The shell mounts this permanently and feeds it the global idle time. When the
@@ -11,7 +11,7 @@ import { Slideshow, type SlideshowHandle } from "./Slideshow";
  * resets `idleMs` on any interaction, which hides us again (and swallows that
  * first wake event so it doesn't open the assistant).
  */
-export function PhotosOverlay({ idleMs, setActive, setKeyHandler }: OverlayProps) {
+export function PhotosOverlay({ idleMs, setActive, setKeyHandler, setBackdrop }: OverlayProps) {
   const show = useRef<SlideshowHandle>(null);
   const { data: config } = useQuery({ queryKey: ["photos", "config"], queryFn: fetchPhotoConfig });
   const { data: result } = useQuery({
@@ -43,10 +43,22 @@ export function PhotosOverlay({ idleMs, setActive, setKeyHandler }: OverlayProps
     return () => setKeyHandler(null);
   }, [active, setKeyHandler]);
 
+  // Floating widgets read the photo's brightness to pick their ink colour.
+  useEffect(() => {
+    if (!active) return;
+    return () => setBackdrop(null);
+  }, [active, setBackdrop]);
+
   if (!active) return null;
   return (
     <div className="fixed inset-0 z-[100] bg-black">
-      <Slideshow ref={show} photos={photos} intervalSec={intervalSec} resumeKey="screensaver" />
+      <Slideshow
+        ref={show}
+        photos={photos}
+        intervalSec={intervalSec}
+        resumeKey="screensaver"
+        onReveal={(img) => setBackdrop(backdropSampler(img))}
+      />
     </div>
   );
 }

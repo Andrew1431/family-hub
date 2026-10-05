@@ -128,11 +128,35 @@ All Google modules share ONE OAuth client (the hub's app identity): `.env` `GOOG
 etc.). Per-account **refresh tokens stay per-module** (each module's own secret ns, least-privilege
 scopes), so each account connects once per Google module. See `modules/calendar-google/google.ts`.
 
+## Overlays & photo mode (screensaver)
+
+- A module may export `Overlay` (`defineModule({ …, Overlay })`): mounted permanently by
+  `packages/ui/src/components/OverlayHost.tsx`, fed the global `idleMs`. It decides when to
+  take over (photos-drive = idle slideshow) and MUST mirror that via `setActive`. Any
+  interaction wakes the screen and the waking event is swallowed.
+- `setKeyHandler(fn)`: while active, the shell offers each keydown to `fn` first; returning
+  `true` consumes it without waking (the slideshow uses ←/→ for prev/next).
+- `setBackdrop(sampler)`: an overlay publishes `(rect) => luminance 0–1 | null` for what's under
+  a viewport rect (call again with a new fn when the picture changes).
+- **Floating widgets ("photo mode")**: hub config `overScreensaver` maps module name → anchor
+  (`"in-place"` | `"top-left"` | `"top"` | `"top-right"` | `"bottom-left"` | `"bottom"` |
+  `"bottom-right"`; `top`/`bottom` = full-width strip). Old `string[]` form = all in-place.
+  Editable in Hub settings → "Over the screensaver", or `PUT /api/config`. The shell raises
+  those cards above the overlay (`section[data-photo-mode]` in `ui/src/styles.css`), strips the
+  card surface/cog, and `Title` renders nothing.
+- Modules adapt via `@hub/components`: `usePhotoMode()` → `{ active, sample, anchor }` (render a
+  read-only, chrome-free view; lay out per anchor) and `useBackdropInk(ref)` → `"light"|"dark"`
+  ink for legibility over the photo. See `modules/clock` and `modules/notes` (`GhostNotes`).
+- Slideshow order is a seeded hash-sort per page load (`shuffled()` in
+  `modules/photos-drive/frontend/Slideshow.tsx`): stable across list refetches, position
+  tracked by photo id, and the screensaver resumes where it left off.
+
 ## Theming
 
 daisyUI v5 theme blocks live in `config/theme.template.css` (seeded → `theme.local.css`,
 gitignored). Three ship by default: `hearth` (warm dark, default), `hearth-day` (warm light),
-`hearth-night` (dim ember for evenings). **Themes are discovered at runtime** — the UI scans
+`hearth-night` (dim ember for evenings), plus extra palettes (seasonal: autumn/fall,
+halloween, cute-spooky, dark-spooky, winter/ice; eccentric: synthwave, absinthe, citrus, …). **Themes are discovered at runtime** — the UI scans
 the stylesheet for `[data-theme=…]` rules (`packages/ui/src/lib/themes.ts`), so adding a block
 to `theme.local.css` makes it appear in Settings → Theme with zero code changes. Hub config
 keys: `theme` (single mode) or `themeMode:"auto"` + `themeDay`/`themeNight`/`dayStart`/`nightStart`

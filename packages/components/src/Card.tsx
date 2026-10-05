@@ -7,6 +7,8 @@ export interface CardProps {
   surface?: "panel" | "bare";
   className?: string;
   style?: CSSProperties;
+  /** Floating over the screensaver (see usePhotoMode). */
+  photoMode?: boolean;
   children: ReactNode;
 }
 
@@ -15,7 +17,7 @@ export interface CardProps {
  * Reads HotkeyContext; syncs DOM focus with app focus state; provides CardContext
  * to children (Title, useModuleHotkeys).
  */
-export function Card({ instanceId, hotkey, surface = "panel", className, style, children }: CardProps) {
+export function Card({ instanceId, hotkey, surface = "panel", className, style, photoMode, children }: CardProps) {
   const { focusedId, focus } = useHotkey();
   const focused = focusedId === instanceId;
   const elRef = useRef<HTMLElement>(null);
@@ -67,6 +69,7 @@ export function Card({ instanceId, hotkey, surface = "panel", className, style, 
         className={classes}
         style={style}
         data-focused={focused}
+        data-photo-mode={photoMode ? "true" : undefined}
         onFocus={handleFocus}
         onBlur={handleBlur}
       >

@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { defineModule, type PanelProps } from "@hub/sdk";
-import { IconPlus, IconX, LoadingState, ScrollView, Title, useModuleHotkeys } from "@hub/components";
+import {
+  IconPlus,
+  IconX,
+  LoadingState,
+  ScrollView,
+  Title,
+  useBackdropInk,
+  useModuleHotkeys,
+  usePhotoMode,
+} from "@hub/components";
 import { manifest } from "./manifest";
 
 /*
@@ -171,6 +180,41 @@ function NoteCard({
   );
 }
 
+// ── Photo mode (floating over the screensaver) ─────────────────────────────────
+
+/**
+ * Read-only ghost of the notes: tinted cards, softened text. Pinned to the
+ * bottom of the screen they stack upward from the edge; as a full-width strip
+ * they flow in a row instead.
+ */
+function GhostNotes({ notes }: { notes: Note[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const ink = useBackdropInk(ref) === "dark" ? INK_DARK : INK_LIGHT;
+  const { anchor } = usePhotoMode();
+  const strip = anchor === "top" || anchor === "bottom";
+  const layout = strip
+    ? `flex-row flex-wrap ${anchor === "bottom" ? "items-end" : ""}`
+    : `flex-col ${anchor.startsWith("bottom") ? "justify-end" : ""}`;
+  return (
+    <div ref={ref} className={`flex h-full gap-4 overflow-hidden ${layout}`}>
+      {notes.map((note) => (
+        <div
+          key={note.id}
+          className={`shrink-0 rounded-2xl px-5 py-4 ${strip ? "max-w-[32rem]" : ""}`}
+          style={{ backgroundColor: `color-mix(in srgb, ${note.color} 30%, transparent)` }}
+        >
+          <p
+            className="whitespace-pre-wrap font-serif text-[clamp(20px,2.1vw,30px)] leading-snug"
+            style={{ color: ink, opacity: 0.6 }}
+          >
+            {note.text}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Panel ──────────────────────────────────────────────────────────────────
 
 const NOTES_KEY = ["notes", "items"] as const;
@@ -225,6 +269,7 @@ function NotesPanel(_props: PanelProps) {
   // "N" from idle: focuses this card AND immediately creates a new note.
   // "N" while already focused: creates another note.
   useModuleHotkeys({ n: addNote });
+  const photo = usePhotoMode().active;
 
   if (notes === null) {
     return query.isError ? (
@@ -235,6 +280,8 @@ function NotesPanel(_props: PanelProps) {
       <LoadingState className="h-full" />
     );
   }
+
+  if (photo) return <GhostNotes notes={notes.filter((n) => n.text.trim() !== "")} />;
 
   return (
     <div className="relative flex h-full flex-col">

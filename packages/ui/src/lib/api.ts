@@ -1,4 +1,12 @@
 import type { ModuleManifest, LayoutConfig } from "@hub/sdk";
+import type { PhotoAnchor } from "@hub/components";
+
+/** Normalise `overScreensaver` (old array form → all in-place). */
+export function floatingAnchors(c: HubConfig): Record<string, PhotoAnchor> {
+  const v = c.overScreensaver;
+  if (!v) return {};
+  return Array.isArray(v) ? Object.fromEntries(v.map((m) => [m, "in-place" as const])) : v;
+}
 
 export interface HubConfig {
   familyName: string;
@@ -16,6 +24,11 @@ export interface HubConfig {
   /** "HH:MM" boundaries for auto mode. */
   dayStart?: string;
   nightStart?: string;
+  /**
+   * Widgets that float above the photo screensaver ("photo mode"): module name
+   * → where to put it. (A plain string[] from older configs means "in-place".)
+   */
+  overScreensaver?: Record<string, PhotoAnchor> | string[];
 }
 
 async function getJson<T>(url: string): Promise<T> {

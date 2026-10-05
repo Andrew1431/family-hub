@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ModuleManifest, LayoutConfig } from "@hub/sdk";
-import { fetchModules, fetchLayout, fetchConfig, type HubConfig } from "./lib/api";
+import { fetchModules, fetchLayout, fetchConfig, floatingAnchors, type HubConfig } from "./lib/api";
 import { DashboardGrid } from "./components/DashboardGrid";
 import { Header } from "./components/Header";
 import { AssistantOrb } from "./components/AssistantOrb";
@@ -8,7 +8,7 @@ import { ChatModal } from "./components/ChatModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { HubSettings } from "./components/HubSettings";
 import { OverlayHost } from "./components/OverlayHost";
-import { HotkeyProvider, IconButton, IconGear } from "@hub/components";
+import { HotkeyProvider, IconButton, IconGear, type BackdropSampler } from "@hub/components";
 import { useTheme } from "./lib/useTheme";
 
 export default function App() {
@@ -20,6 +20,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeId, setActiveId] = useState<string>("");
   const [overlayActive, setOverlayActive] = useState(false);
+  const [backdrop, setBackdrop] = useState<BackdropSampler | null>(null);
 
   const showAssistant = config?.showAssistant !== false; // default on for older configs
   const showOrb = config?.showOrb !== false; // default on; only meaningful when showAssistant
@@ -146,6 +147,11 @@ export default function App() {
             dashboard={active}
             modules={moduleMap}
             defaults={{ columns: layout.columns, ...(layout.rows ? { rows: layout.rows } : {}) }}
+            photoMode={{
+              active: overlayActive,
+              sample: backdrop,
+              anchors: floatingAnchors(config),
+            }}
           />
         )}
       </HotkeyProvider>
@@ -162,7 +168,12 @@ export default function App() {
       )}
       {/* Full-screen module overlays (e.g. the photos screensaver). Each decides
           when to show based on the global idle signal. */}
-      <OverlayHost modules={modules} onActiveChange={setOverlayActive} />
+      <OverlayHost
+        modules={modules}
+        onActiveChange={setOverlayActive}
+        // Functional form: the sampler is itself a function, not an updater.
+        onBackdropChange={(s) => setBackdrop(() => s)}
+      />
     </div>
   );
 }

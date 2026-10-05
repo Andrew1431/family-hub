@@ -49,3 +49,6 @@ export {
   IconMoon,
   IconSparkle,
 } from "./icons.js";
+
+export { PhotoModeCtx, usePhotoMode, useBackdropInk } from "./photoMode.js";
+export type { BackdropSampler, PhotoAnchor, PhotoModeValue } from "./photoMode.js";

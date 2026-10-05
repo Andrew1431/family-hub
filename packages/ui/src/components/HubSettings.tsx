@@ -1,7 +1,15 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { ModuleManifest } from "@hub/sdk";
-import { Field, IconArrowLeft, Segmented, Select, TextInput, ToggleRow } from "@hub/components";
-import { updateConfig, type HubConfig } from "../lib/api";
+import {
+  Field,
+  IconArrowLeft,
+  Segmented,
+  Select,
+  TextInput,
+  ToggleRow,
+  type PhotoAnchor,
+} from "@hub/components";
+import { floatingAnchors, updateConfig, type HubConfig } from "../lib/api";
 import { discoverThemes, type ThemeInfo } from "../lib/themes";
 import { moduleFrontends } from "../modules.generated";
 
@@ -98,6 +106,8 @@ export function HubSettings({
 
       <ThemeSettings config={config} saving={saving} patch={patch} />
 
+      <ScreensaverSettings config={config} modules={modules} saving={saving} patch={patch} />
+
       {configurable.length > 0 && (
         <section className="flex flex-col gap-2">
           <div className="panel-label">Modules</div>
@@ -129,6 +139,69 @@ export function HubSettings({
     </div>
   );
 }
+
+// ── Over-the-screensaver section ──────────────────────────────────────────────
+
+function ScreensaverSettings({
+  config,
+  modules,
+  saving,
+  patch,
+}: {
+  config: HubConfig;
+  modules: ModuleManifest[];
+  saving: boolean;
+  patch: (next: Partial<HubConfig>) => Promise<void>;
+}) {
+  // Any module with a panel can float — except the ones that ARE an overlay.
+  const candidates = modules.filter(
+    (m) => moduleFrontends[m.name]?.Panel && !moduleFrontends[m.name]?.Overlay,
+  );
+  const anchors = floatingAnchors(config);
+  if (candidates.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="panel-label">Over the screensaver</div>
+      <p className="-mt-1 text-xs text-base-content/55">
+        Keep widgets visible on top of the photo slideshow, with the card stripped away — in
+        their usual spot, or pinned to an edge of the screen.
+      </p>
+      <div className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2">
+        {candidates.map((m) => (
+          <Fragment key={m.name}>
+            <span className="text-sm text-base-content">{m.title}</span>
+            <Select
+              value={anchors[m.name] ?? "off"}
+              disabled={saving}
+              onChange={(e) => {
+                const { [m.name]: _, ...rest } = anchors;
+                const v = e.target.value;
+                void patch({
+                  overScreensaver: v === "off" ? rest : { ...rest, [m.name]: v as PhotoAnchor },
+                });
+              }}
+            >
+              {ANCHOR_OPTIONS.map(([v, label]) => (
+                <option key={v} value={v}>{label}</option>
+              ))}
+            </Select>
+          </Fragment>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const ANCHOR_OPTIONS: [PhotoAnchor | "off", string][] = [
+  ["off", "Hidden"],
+  ["in-place", "Where it sits"],
+  ["top-left", "Top left"],
+  ["top", "Top, full width"],
+  ["top-right", "Top right"],
+  ["bottom-left", "Bottom left"],
+  ["bottom", "Bottom, full width"],
+  ["bottom-right", "Bottom right"],
+];
 
 // ── Theme section ────────────────────────────────────────────────────────────
 

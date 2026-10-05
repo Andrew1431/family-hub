@@ -64,6 +64,12 @@ export interface OverlayProps {
    * release. Unclaimed keys wake the screen as usual.
    */
   setKeyHandler: (handler: ((e: KeyboardEvent) => boolean) | null) => void;
+  /**
+   * Describe what's on screen for widgets floating above the overlay: a
+   * function returning the average luminance (0–1) under a viewport rect.
+   * Call again with a new function whenever the picture changes; `null` clears.
+   */
+  setBackdrop: (sample: ((rect: DOMRect) => number | null) | null) => void;
 }
 
 /** The frontend half of a module: its manifest, panel, and optional settings. */

@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { photoUrl, type PhotoRef } from "./types";
 
 /** One crossfading image layer; fades in once the bytes have loaded. */
-function Slide({ id }: { id: string }) {
+function Slide({ id, onReveal }: { id: string; onReveal?: (img: HTMLImageElement) => void }) {
   const [shown, setShown] = useState(false);
   // Portrait photos get `contain` (black bars) so faces aren't cropped off;
   // landscape fills the frame with `cover`. Decided from natural dimensions on
@@ -16,6 +16,7 @@ function Slide({ id }: { id: string }) {
   function reveal() {
     const img = ref.current;
     if (img && img.naturalHeight > img.naturalWidth) setPortrait(true);
+    if (img) onReveal?.(img);
     requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
   }
 
@@ -87,8 +88,14 @@ interface Shown {
 
 export const Slideshow = forwardRef<
   SlideshowHandle,
-  { photos: PhotoRef[]; intervalSec: number; resumeKey?: string }
->(function Slideshow({ photos, intervalSec, resumeKey }, ref) {
+  {
+    photos: PhotoRef[];
+    intervalSec: number;
+    resumeKey?: string;
+    /** Fires when each new photo starts fading in (e.g. to sample its brightness). */
+    onReveal?: (img: HTMLImageElement) => void;
+  }
+>(function Slideshow({ photos, intervalSec, resumeKey, onReveal }, ref) {
   const order = useMemo(() => shuffled(photos), [photos]);
   const len = order.length;
 
@@ -159,7 +166,53 @@ export const Slideshow = forwardRef<
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
       {under && <Slide key={under.key} id={under.id} />}
-      <Slide key={cur.key} id={cur.id} />
+      <Slide key={cur.key} id={cur.id} {...(onReveal ? { onReveal } : {})} />
     </div>
   );
 });
+
+/**
+ * Build a sampler for the picture as it's laid out on screen: redraws `img`
+ * into a small viewport-shaped canvas with the same cover/contain fit the
+ * Slide uses (black letterbox included), then averages luminance under a rect.
+ * Same-origin bytes (proxied through the core), so the canvas isn't tainted.
+ */
+export function backdropSampler(img: HTMLImageElement): (rect: DOMRect) => number | null {
+  const SCALE = 1 / 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(vw * SCALE));
+  canvas.height = Math.max(1, Math.round(vh * SCALE));
+  const g = canvas.getContext("2d", { willReadFrequently: true });
+  if (!g || !img.naturalWidth) return () => null;
+  const { naturalWidth: iw, naturalHeight: ih } = img;
+  const fit = ih > iw ? Math.min : Math.max; // portrait → contain, else cover
+  const k = fit(canvas.width / iw, canvas.height / ih);
+  const dw = iw * k;
+  const dh = ih * k;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  try {
+    g.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+  } catch {
+    return () => null;
+  }
+  return (rect) => {
+    const x = Math.max(0, Math.floor(rect.left * SCALE));
+    const y = Math.max(0, Math.floor(rect.top * SCALE));
+    const w = Math.min(canvas.width - x, Math.ceil(rect.width * SCALE));
+    const h = Math.min(canvas.height - y, Math.ceil(rect.height * SCALE));
+    if (w <= 0 || h <= 0) return null;
+    try {
+      const d = g.getImageData(x, y, w, h).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        sum += (0.2126 * d[i]! + 0.7152 * d[i + 1]! + 0.0722 * d[i + 2]!) / 255;
+      }
+      return sum / (d.length / 4);
+    } catch {
+      return null; // tainted canvas — caller falls back to light ink
+    }
+  };
+}

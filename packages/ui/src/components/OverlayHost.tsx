@@ -16,11 +16,17 @@ import { moduleFrontends } from "../modules.generated";
 export function OverlayHost({
   modules,
   onActiveChange,
+  onBackdropChange,
 }: {
   modules: ModuleManifest[];
   /** Called whenever the "any overlay active" state flips. */
   onActiveChange?: (anyActive: boolean) => void;
+  /** Latest backdrop sampler from an active overlay (for floating widgets). */
+  onBackdropChange?: (sample: ((rect: DOMRect) => number | null) | null) => void;
 }) {
+  const onBackdropRef = useRef(onBackdropChange);
+  onBackdropRef.current = onBackdropChange;
+  const setBackdrop = useRef((s: ((rect: DOMRect) => number | null) | null) => onBackdropRef.current?.(s)).current;
   const [idleMs, setIdleMs] = useState(0);
   const lastActivity = useRef(Date.now());
   const activeNames = useRef(new Set<string>());
@@ -108,6 +114,7 @@ export function OverlayHost({
             idleMs={idleMs}
             setActive={setterFor(m.name)}
             setKeyHandler={keySetterFor(m.name)}
+            setBackdrop={setBackdrop}
           />
         );
       })}

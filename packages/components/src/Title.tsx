@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useCard } from "./hotkeys.js";
+import { usePhotoMode } from "./photoMode.js";
 
 interface TitleProps {
   children: ReactNode;
@@ -15,6 +16,8 @@ interface TitleProps {
  */
 export function Title({ children, className }: TitleProps) {
   const { hotkey, focused } = useCard();
+  // Floating over the screensaver: chrome goes, content stays.
+  if (usePhotoMode().active) return null;
   const base = "panel-label inline-flex items-baseline gap-1.5";
   return (
     <span className={className ? `${base} ${className}` : base}>

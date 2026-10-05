@@ -120,3 +120,16 @@ body {
   border-color: color-mix(in oklab, var(--color-primary) 50%, transparent);
   background: color-mix(in oklab, var(--color-primary) 10%, transparent);
 }
+
+/* "Photo mode": a widget floating above the screensaver. The card surface
+   vanishes (no panel, border, focus glow) and it rises above the overlay
+   (z-100); the module itself decides how its content reads (usePhotoMode). */
+section[data-photo-mode="true"] {
+  position: relative;
+  z-index: 110;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  animation: none;
+  pointer-events: none; /* any touch just wakes the screen underneath */
+}
